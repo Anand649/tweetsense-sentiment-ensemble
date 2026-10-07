@@ -32,6 +32,8 @@ data/processed/
 data/samples/
 data/manifest.json
 models/**/*.joblib
+models/twitter_roberta/
+.hf-cache/
 models/**/baseline_stats.json
 reports/mlruns/
 reports/mlflow.db

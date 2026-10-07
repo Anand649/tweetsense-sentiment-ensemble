@@ -38,7 +38,7 @@
           </div>
         </section>
       </div>
-      <section class="info-strip"><div><span class="info-icon">◈</span><div><strong>Real tweet data</strong><span>TweetEval sentiment labels</span></div></div><div><span class="info-icon">⟡</span><div><strong>Three classifiers</strong><span>Logistic regression, SVM, Naive Bayes</span></div></div><div><span class="info-icon">▣</span><div><strong>Transparent results</strong><span><a href="/analysis">See evaluation and charts →</a></span></div></div></section>
+      <section class="info-strip"><div><span class="info-icon">◈</span><div><strong>Real tweet data</strong><span>TweetEval sentiment labels</span></div></div><div><span class="info-icon">⟡</span><div><strong>Context-aware ensemble</strong><span>{% if cards.get('tweet_sentiment', {}).get('model') == 'twitter_hybrid_ensemble' %}Twitter RoBERTa + three classical classifiers{% else %}Logistic regression, SVM, Naive Bayes{% endif %}</span></div></div><div><span class="info-icon">▣</span><div><strong>Transparent results</strong><span><a href="/analysis">See evaluation and charts →</a></span></div></div></section>
     </main>
     <footer>TweetSense · A sentiment analysis demo powered by a soft-voting ensemble.</footer>
   </div>

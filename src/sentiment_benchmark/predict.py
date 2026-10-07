@@ -13,6 +13,7 @@ import numpy as np
 
 from . import PROJECT_ROOT
 from .evaluate import predictions_from_proba
+from .twitter_ensemble import TwitterEnsemble
 
 
 @dataclass
@@ -57,7 +58,7 @@ def available_models(models_dir: Path | None = None) -> list[str]:
     return sorted(p.parent.name for p in models_dir.glob("*/best.joblib"))
 
 
-def load_model(dataset: str, models_dir: Path | None = None) -> LoadedModel:
+def load_base_model(dataset: str, models_dir: Path | None = None) -> LoadedModel:
     models_dir = Path(models_dir or PROJECT_ROOT / "models")
     model_dir = models_dir / dataset
     path = model_dir / "best.joblib"
@@ -65,3 +66,15 @@ def load_model(dataset: str, models_dir: Path | None = None) -> LoadedModel:
         raise FileNotFoundError(f"no exported model for {dataset!r} at {path}; run the benchmark first")
     card = json.loads((model_dir / "model_card.json").read_text(encoding="utf-8"))
     return LoadedModel(dataset, joblib.load(path), card, model_dir)
+
+
+def load_model(dataset: str, models_dir: Path | None = None) -> LoadedModel | TwitterEnsemble:
+    models_dir = Path(models_dir or PROJECT_ROOT / "models")
+    base = load_base_model(dataset, models_dir)
+    model_dir = base.model_dir
+    hybrid_card_path = model_dir / "hybrid_card.json"
+    transformer_dir = models_dir / "twitter_roberta"
+    if dataset == "tweet_sentiment" and hybrid_card_path.exists() and (transformer_dir / "pytorch_model.bin").exists():
+        hybrid_card = json.loads(hybrid_card_path.read_text(encoding="utf-8"))
+        return TwitterEnsemble(base, transformer_dir, hybrid_card["transformer_weight"], hybrid_card)
+    return base

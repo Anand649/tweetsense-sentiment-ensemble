@@ -95,7 +95,9 @@ def create_app(models_dir: str | Path | None = None, reports_dir: str | Path | N
             except Exception as exc:  # pragma: no cover
                 cards[name] = {"error": str(exc)}
         figures_dir = reports_dir / "figures"
-        figures = sorted(p.name for p in figures_dir.glob("*tweet_sentiment*.png")) if figures_dir.exists() else []
+        is_hybrid = cards.get("tweet_sentiment", {}).get("model") == "twitter_hybrid_ensemble"
+        pattern = "cm_tweet_sentiment_hybrid.png" if is_hybrid else "*tweet_sentiment*.png"
+        figures = sorted(p.name for p in figures_dir.glob(pattern)) if figures_dir.exists() else []
         results = [row for row in results_table() if row.get("dataset") == "tweet_sentiment"]
         return render_template("analysis.html", models=names, cards=cards, results=results, figures=figures, version=__version__)
 

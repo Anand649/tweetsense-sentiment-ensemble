@@ -1,0 +1,90 @@
+{
+  "dataset": "tweet_sentiment",
+  "task": "multiclass",
+  "label_names": [
+    "negative",
+    "neutral",
+    "positive"
+  ],
+  "model": "twitter_hybrid_ensemble",
+  "features": "tfidf+twitter_roberta",
+  "threshold": null,
+  "selection": "transformer blending weight chosen by macro F1 on the official validation split; test kept separate",
+  "metrics": {
+    "validation_f1": 0.7576996465583697,
+    "test_accuracy": 0.726310647997395,
+    "test_f1": 0.727556097628841
+  },
+  "per_class": [
+    {
+      "class": "negative",
+      "support": 3972,
+      "precision": 0.7047769979624179,
+      "recall": 0.7837361530715005,
+      "f1": 0.7421623554654905
+    },
+    {
+      "class": "neutral",
+      "support": 5937,
+      "precision": 0.7494919637908738,
+      "recall": 0.6833417550951659,
+      "f1": 0.7148898678414097
+    },
+    {
+      "class": "positive",
+      "support": 2375,
+      "precision": 0.7139364303178484,
+      "recall": 0.7376842105263158,
+      "f1": 0.7256160695796231
+    }
+  ],
+  "feature_params": {
+    "type": "tfidf",
+    "min_df": 2,
+    "max_features": 20000,
+    "ngram_range": [
+      1,
+      2
+    ],
+    "sublinear_tf": true
+  },
+  "model_params": {
+    "type": "ensemble",
+    "names": [
+      "logistic_regression",
+      "linear_svm",
+      "naive_bayes"
+    ],
+    "members": {
+      "logistic_regression": {
+        "max_iter": 1000
+      },
+      "linear_svm": {
+        "calibration_cv": 2
+      },
+      "naive_bayes": {
+        "alpha": 1.0
+      }
+    }
+  },
+  "clean": {
+    "lowercase": true,
+    "remove_urls": true,
+    "remove_mentions": true,
+    "keep_hashtags": true,
+    "remove_stopwords": false,
+    "min_word_len": 2,
+    "stemmer": null
+  },
+  "training_rows": 45615,
+  "data_fingerprint": "16ab68f96271f55b",
+  "config": "configs\\tweet_sentiment.yaml",
+  "git_commit": "3e8f50a",
+  "package_version": "1.0.0",
+  "python": "3.12.14",
+  "tracking_backend": "jsonl",
+  "created": "2026-10-07T13:12:03.377802+00:00",
+  "transformer_repo": "cardiffnlp/twitter-roberta-base-sentiment-latest",
+  "transformer_revision": "3216a57f2a0d9c45a2e6c20157c20c49fb4bf9c7",
+  "transformer_weight": 0.75
+}

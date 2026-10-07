@@ -92,9 +92,9 @@ def _cmd_monitor(args: argparse.Namespace) -> int:
     import pandas as pd
 
     from .monitor import drift_report, load_baseline
-    from .predict import load_model
+    from .predict import load_base_model
 
-    model = load_model(args.dataset, args.models_dir)
+    model = load_base_model(args.dataset, args.models_dir)
     baseline = load_baseline(model.model_dir)
     store = None
     if args.from_db or args.store:

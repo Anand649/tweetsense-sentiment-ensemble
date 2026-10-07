@@ -5,7 +5,7 @@ from urllib.request import urlretrieve
 
 BASE = "https://raw.githubusercontent.com/cardiffnlp/tweeteval/main/datasets/sentiment/"
 DEST = Path(__file__).resolve().parents[1] / "data" / "raw" / "tweet_sentiment"
-FILES = [f"{split}_{kind}.txt" for split in ("train", "test") for kind in ("text", "labels")]
+FILES = [f"{split}_{kind}.txt" for split in ("train", "val", "test") for kind in ("text", "labels")]
 
 
 def main() -> None:
