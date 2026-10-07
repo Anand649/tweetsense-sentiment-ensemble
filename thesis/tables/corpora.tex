@@ -1,0 +1,18 @@
+\begin{table}[t]
+\centering
+\caption{Corpora used in the study.}
+\label{tab:corpora}
+\footnotesize\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrp{4.6cm}p{2.6cm}l}
+\toprule
+Corpus & Documents & Classes and balance & Labels & Split \\
+\midrule
+Hate (Twitter) & 31,962 & 2: not hate 92.99 percent, hate 7.01 percent & human (competition) & stratified 80/20 \\
+Vaccine (Twitter) & 10,353 & 3: negative 9.9, neutral 56.6, positive 33.5 percent & TextBlob polarity sign & stratified 80/20 \\
+IMDB & 50,000 & 2: balanced & human (star ratings) & official 25k/25k \\
+\bottomrule
+\end{tabular}
+\end{table}
+% twitter_hate: train 25569, test 6393
+% vaccination: train 8282, test 2071
+% imdb: train 25000, test 25000

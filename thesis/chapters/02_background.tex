@@ -1,0 +1,56 @@
+\section{Sentiment analysis}
+Sentiment analysis determines the orientation of an opinion expressed in text. Three levels of granularity are usually distinguished~\cite{liu2012}: document level, where a whole review or tweet receives one label; sentence level; and aspect level, where the opinion about each attribute of an entity is extracted. This thesis works at document level, with two or three classes. The surveys of Pang and Lee~\cite{pang2008} and Liu~\cite{liu2012} cover the field up to the era of supervised bag-of-words classifiers; the 2022 thesis~\cite{sium2022} surveyed the subsequent deep-learning approaches in detail, and that survey is not repeated here. Instead this chapter concentrates on the components actually used in the benchmark and on the methodological literature that motivates the protocol.
+
+Three families of approach coexist. \emph{Lexicon-based} methods score a document by the polarity of the words it contains, from hand-built dictionaries or from lexicons induced from corpora; TextBlob~\cite{loria2018}, used here to label the vaccine corpus, belongs to this family and returns a polarity in $[-1, 1]$ from an adjective lexicon with rules for negation and intensifiers. \emph{Supervised} methods learn a classifier from labelled documents and dominate both research and practice. \emph{Distant or weak supervision} sits between the two: Go et al.~\cite{go2009} labelled tweets by the emoticons they contained and trained supervised classifiers on the result; labelling the vaccine corpus by lexicon polarity is the same idea with a different noisy oracle, and it inherits the same limitation, namely that a classifier trained on such labels learns the oracle.
+
+\subsection{Hate speech detection}
+Racist and sexist tweet detection was established as a task by Waseem and Hovy~\cite{waseem2016}, whose corpus of about 17,000 tweets annotated for racism and sexism showed that character $n$-grams and simple demographic features gave strong baselines, and by Davidson et al.~\cite{davidson2017}, who separated hate speech from merely offensive language and documented the confusion between the two. Both corpora are heavily imbalanced, and both papers report F1 on the minority class as the metric of interest. Subsequent work has shown that hate-speech classifiers can encode racial bias through dialect~\cite{sap2019}, a concern taken up in Chapter~\ref{ch:future}.
+
+\section{Representations of text}
+\subsection{Sparse representations}
+The bag-of-words model represents a document by the counts of its terms over a fixed vocabulary; TF-IDF reweights each count by the inverse document frequency of the term, down-weighting terms that appear in most documents. With unigrams and bigrams these representations remain remarkably competitive: Wang and Manning~\cite{wang2012} showed that a naive-Bayes-weighted linear model over bigram features matched or beat far more complex models on sentiment corpora including IMDB, a result the present study reproduces in spirit (Chapter~\ref{ch:results}).
+
+\subsection{Distributed representations}
+Word2Vec~\cite{mikolov2013} learns a dense vector per word such that words occurring in similar contexts receive similar vectors, using either the continuous bag-of-words or the skip-gram objective with negative sampling; a document can be represented by the mean of its word vectors. Doc2Vec~\cite{le2014} extends the idea with a paragraph vector that is trained jointly with the word vectors and inferred for unseen documents by gradient descent. Both were central to the 2022 thesis, which found Word2Vec features to give its best XGBoost result. Pretrained contextual representations~\cite{devlin2019} supersede both in accuracy at a much higher computational cost and are discussed in Section~\ref{sec:bg2026}.
+
+\section{Classifiers}
+\paragraph{Multinomial naive Bayes} models the term counts of a document as draws from a class-conditional multinomial distribution~\cite{mccallum1998}. Its independence assumption is false for text and its probability estimates are poorly calibrated, yet its decision rule is strong, it trains in milliseconds, and it is the classical baseline for text.
+
+\paragraph{Logistic regression} fits a linear decision function by maximising the regularised conditional log-likelihood; its outputs are probabilities, and with L2 regularisation it is among the best-calibrated linear classifiers~\cite{niculescu2005}.
+
+\paragraph{Linear support vector machines} fit the maximum-margin hyperplane~\cite{joachims1998} and are the classical choice for high-dimensional sparse text. They output margins, not probabilities; Platt scaling~\cite{platt1999} fits a sigmoid to the margins on held-out data to obtain calibrated probabilities, which is what allows an SVM to take part in threshold tuning on equal terms with probabilistic models.
+
+\paragraph{Random forests}~\cite{breiman2001} average many decision trees grown on bootstrap samples with random feature subsets; they are robust and need little tuning but are comparatively slow on wide sparse matrices.
+
+\paragraph{Gradient-boosted trees} fit trees sequentially to the residuals of the ensemble so far; XGBoost~\cite{chen2016} adds regularisation, sparsity-aware splits and a histogram algorithm that make it practical on large sparse inputs. It was the best model of the 2022 thesis on Word2Vec features.
+
+\paragraph{Soft-voting ensembles} average the predicted probabilities of heterogeneous members. They are cheap when the members are cheap and often improve calibration as well as accuracy.
+
+\paragraph{Convolutional neural networks for text.} Kim~\cite{kim2014} showed that a single convolutional layer over word embeddings with several kernel widths, global max pooling and dropout is a strong sentence classifier. The architecture extracts local $n$-gram-like features and is fast to train.
+
+\paragraph{Recurrent networks.} The long short-term memory cell~\cite{hochreiter1997} allows a recurrent network to carry information across long spans; read in both directions and pooled over time it gives a document representation that captures order, which the CNN largely ignores. Both neural architectures were proposed as future work in the 2022 thesis.
+
+\section{Evaluation methodology}
+\label{sec:bgmethod}
+\paragraph{Leakage.} Kaufman et al.~\cite{kaufman2012} define leakage as the use of information in model training that would not be available at prediction time, and catalogue its forms; fitting preprocessing on the full data before splitting is the most common form in applied work. The remedy is to place every fitted transformation inside the cross-validation loop, which is the first rule of the protocol in Chapter~\ref{ch:method}.
+
+\paragraph{Selection bias.} Cawley and Talbot~\cite{cawley2010} showed that selecting among many models or hyper-parameters on the evaluation data biases the reported score upward, and that the bias grows with the number of alternatives; with 56 cells the effect would be far from negligible. Nested evaluation, in which selection uses cross-validation on the training data and reporting uses a separate test split scored once, removes it.
+
+\paragraph{Thresholds.} Lipton et al.~\cite{lipton2014} proved that the threshold which maximises F1 is not 0.5 in general but depends on the classifier's score distribution and on the class prior; for a calibrated classifier the optimal threshold is half the optimal F1. Choosing the threshold on out-of-fold predictions, never on the test split, is therefore both necessary and cheap.
+
+\paragraph{Calibration.} A classifier is calibrated if among documents scored $p$ a fraction $p$ are positive. Niculescu-Mizil and Caruana~\cite{niculescu2005} compared the calibration of classical learners and the effect of Platt scaling and isotonic regression; Guo et al.~\cite{guo2017} showed that modern neural networks are systematically over-confident. Reliability diagrams make the property visible, and the present results show that it, rather than discrimination, separates the model families on the imbalanced task.
+
+\paragraph{Metrics under imbalance.} Davis and Goadrich~\cite{davis2006} showed that precision-recall curves are more informative than ROC curves when the positive class is rare, because ROC is insensitive to the number of false positives relative to a large negative class. Both are reported here, with average precision as the summary of the former.
+
+\section{Operating machine-learning models}
+Sculley et al.~\cite{sculley2015} described the hidden technical debt of machine-learning systems: entanglement, undeclared consumers, data dependencies, configuration debt and the absence of monitoring. Mitchell et al.~\cite{mitchell2019} proposed model cards as a documentation standard recording what a model was trained on, how it was evaluated and where it should not be used. Experiment tracking tools such as MLflow~\cite{zaharia2018} record parameters, metrics and artifacts per run. Drift monitoring in production borrows the population stability index from credit scoring~\cite{siddiqi2006}, a symmetric divergence between a baseline and a current histogram. Chapter~\ref{ch:system} applies each of these to the benchmark.
+
+\section{The field in 2026}
+\label{sec:bg2026}
+Three developments since the 2022 thesis change the context of the work without changing its question.
+
+First, pretrained transformer encoders~\cite{devlin2019,liu2019} fine-tuned on a few thousand labelled examples are the accuracy ceiling on every corpus used here: on IMDB they exceed 95\,percent accuracy against the 88 to 91\,percent of models without pretraining~\cite{maas2011,wang2012}. Parameter-efficient fine-tuning~\cite{hu2022} has made this affordable on modest hardware.
+
+Second, large language models classify sentiment from an instruction alone~\cite{brown2020}, and have been used as annotators: Gilardi et al.~\cite{gilardi2023} found that an instruction-following model matched or exceeded crowd workers on several text-annotation tasks at a fraction of the cost, and Zhang et al.~\cite{zhang2023} surveyed sentiment analysis in the era of large language models, finding strong zero-shot performance on simple polarity tasks and weaker results on fine-grained and structured ones. For a corpus like the vaccine tweets, whose only labels come from a lexicon, this offers a cheaper path to human-quality labels than annotation campaigns, with its own validation burden.
+
+Third, the evaluation questions at the centre of this thesis have become more important, not less. Large models are frequently evaluated on benchmarks that overlap their training data, a leakage problem at corpus scale; their probability outputs are at least as poorly calibrated as those of the networks studied here; and their operating cost makes the accuracy-versus-cost trade-off that Chapter~\ref{ch:results} makes explicit the central engineering decision. Conformal prediction~\cite{angelopoulos2023} has emerged as a distribution-free way to turn any classifier's scores into sets with guaranteed coverage, a principled replacement for a single tuned threshold. These developments define the future work in Chapter~\ref{ch:future}.

@@ -1,0 +1,19 @@
+Three corpora are used (Table~\ref{tab:corpora}). The first two are those of the 2022 thesis; the third was added so that every conclusion could be tested on long, balanced documents as well as on short, imbalanced ones.
+
+\input{tables/corpora}
+
+\section{Hate: racist and sexist tweet detection}
+The corpus is the training file of the Analytics Vidhya practice problem \emph{Twitter Sentiment Analysis}: 31,962 tweets with a binary label, 1 for tweets judged racist or sexist and 0 otherwise. There are 2,242 positives (7.01\,percent). User handles are anonymised to \texttt{@user} in the source and the text retains hashtags, emoji rendered as mojibake, and the informal spelling of the platform. The competition's unlabelled test file (17,197 tweets) was used by the 2022 thesis for leaderboard submissions and is not used here; all evaluation is on a stratified 80/20 holdout of the labelled file (seed 42), giving 25,569 training and 6,393 test tweets with 1,794 and 448 positives respectively.
+
+The labels are human and were produced for the competition; no annotation guidelines are published, and the corpus mixes overt slurs with political tweets labelled by their hashtags, which is the principal reason why the ceiling of every model family on this task is far below that on the other two.
+
+\section{Vaccine: COVID-19 vaccine tweets}
+The corpus is the \emph{Pfizer Vaccine Tweets} dataset released on Kaggle by G. Preda: 11,020 tweets collected from December 2020 onward with the hashtags of the Pfizer and BioNTech vaccine, together with user metadata that this study discards. No human sentiment labels exist. As in the 2022 thesis, each tweet is lightly cleaned (URLs, handles and hash symbols removed, stop words dropped), exact duplicates are removed (10,353 unique tweets remain), and the label is the sign of the TextBlob~\cite{loria2018} polarity: negative (polarity below zero, 1,025 tweets, 9.9\,percent), neutral (exactly zero, 5,859 tweets, 56.6\,percent) and positive (above zero, 3,469 tweets, 33.5\,percent). The large neutral class is a property of the labeller: a tweet with no word in the adjective lexicon scores exactly zero.
+
+This is weak supervision in the sense of Section~\ref{sec:bgmethod}: a classifier trained on these labels is trained to reproduce TextBlob, and its scores measure agreement with the lexicon rather than with human judgement. The corpus is kept because it is half of the original study and because it isolates an interesting effect, the interaction between a lexicon-defined target and different representations, which Chapter~\ref{ch:results} discusses. Replacing the labels is the first item of future work.
+
+\section{IMDB: movie reviews}
+The Large Movie Review Dataset of Maas et al.~\cite{maas2011} contains 50,000 reviews from the Internet Movie Database, balanced between negative (star rating at most 4) and positive (at least 7), with an official split of 25,000 training and 25,000 test reviews and at most 30 reviews per film. Reviews average about 230 words before cleaning, ten to twenty times the length of a tweet. The official split is used unchanged; the training split is used for cross-validation.
+
+\section{Data governance}
+No corpus is redistributed with the code. The loaders expect the files in a local data directory; download locations for the public sources are read from the environment, not written in the code; and a manifest records the SHA-256 hash, row count and class balance of the files used for a run, together with a content fingerprint of the loaded frame that is copied into every model card. Continuous integration runs the whole pipeline on a deterministic synthetic corpus generated in code, so that the repository can prove it works without containing any data. Each corpus retains its original licence and terms of use.

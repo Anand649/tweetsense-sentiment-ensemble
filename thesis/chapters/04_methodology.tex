@@ -1,0 +1,79 @@
+This chapter defines every component of the benchmark precisely enough to be re-implemented: the text normalisation, the five representations, the eight model families with their settings, and the evaluation protocol with its metrics. All settings are stored in a single configuration file per grid and logged with every run.
+
+\section{Text normalisation}
+\label{sec:clean}
+One transformer implements the normalisation recipe of the 2022 thesis and is the first step of every exported pipeline, so that training, evaluation and serving apply exactly the same cleaning. In order: HTML entities are unescaped and tags removed; text is lower-cased; URLs and @-handles are removed; characters other than letters (and, optionally, the hash symbol) are replaced by spaces; tokens shorter than a minimum length are dropped; tokens in the scikit-learn English stop-word list are dropped; and the Porter stemmer is applied. The hate corpus keeps hashtags as tokens and uses a minimum length of three characters, because hashtags carry label information in that corpus; the vaccine and IMDB corpora drop the hash symbol and keep two-character tokens. The transformer is stateless, which is what allows it to live inside the model pipeline without being refitted.
+
+\section{Representations}
+\label{sec:features}
+Let $D = \{d_1, \dots, d_n\}$ be the cleaned documents of a training fold. Five representations are evaluated.
+
+\paragraph{Counts.} A vocabulary $V$ of unigrams and bigrams is built from $D$, keeping terms that occur in at least 2 documents and at most 90\,percent of them, truncated to the $|V|$ most frequent ($|V| = 5{,}000$ for tweets, $20{,}000$ for reviews). Document $d$ is the vector of term counts $x_{d,t}$, $t \in V$.
+
+\paragraph{TF-IDF.} The same vocabulary with weights $w_{d,t} = (1 + \log x_{d,t})\cdot \log\frac{1+n}{1+\mathrm{df}(t)} + 1$ (sublinear term frequency, smoothed inverse document frequency), followed by L2 normalisation of each document vector.
+
+\paragraph{Word2Vec.} A skip-gram model with negative sampling~\cite{mikolov2013} is trained on $D$ (dimension 200, window 5, 10 negative samples, minimum count 2, 20 epochs on tweets and 8 on reviews). A document is represented by the mean of the vectors of its in-vocabulary tokens; a document with no in-vocabulary token receives the zero vector.
+
+\paragraph{Doc2Vec.} A distributed-memory model with mean context~\cite{le2014} (dimension 200, window 5, 7 negative samples, minimum count 5, 15 epochs) is trained on $D$. Both training and test documents are embedded by inference (20 epochs of gradient descent on the paragraph vector), so that the two are represented by the same procedure; using the training-time paragraph vectors for training documents and inferred vectors for test documents, as the 2022 notebooks did, gives the two sets different distributions.
+
+\paragraph{Sequences.} For the neural models a vocabulary of the most frequent tokens of $D$ is built inside the estimator (at most 20,000 tokens for tweets, 30,000 for reviews, plus padding and unknown symbols); a document is the sequence of its token indices, truncated or padded to 48 positions for tweets, 200 for the CNN and 160 for the BiLSTM on reviews. The embedding layer is initialised from a Word2Vec model trained on $D$ (dimension 128, 10 epochs) and fine-tuned with the network.
+
+Every representation is fitted on $D$ only. Within cross-validation, $D$ is the training part of a fold; for the final model, $D$ is the whole training split.
+
+\section{Models}
+\label{sec:models}
+Eight model families are evaluated. Classical models use scikit-learn~\cite{pedregosa2011} and XGBoost~\cite{chen2016}; the neural models are implemented in PyTorch~\cite{paszke2019} and wrapped as scikit-learn estimators so that they pass through the same cross-validation, threshold selection, tracking and export as the classical models.
+
+\paragraph{Multinomial naive Bayes}~\cite{mccallum1998} with additive smoothing $\alpha = 0.5$. Because its parameters are term probabilities it is evaluated on count and TF-IDF features only.
+
+\paragraph{Logistic regression} with L2 regularisation, $C = 1$ on tweets and $C = 2$ on reviews, class weights inversely proportional to class frequency on the Twitter corpora, L-BFGS optimisation.
+
+\paragraph{Linear SVM} with $C = 0.5$ and balanced class weights, wrapped in Platt scaling~\cite{platt1999} with three internal folds so that it exposes probabilities.
+
+\paragraph{Random forest}~\cite{breiman2001} with 400 trees (300 on reviews) and balanced-subsample class weights.
+
+\paragraph{XGBoost}~\cite{chen2016} with the histogram tree method, depth 6, minimum child weight 2, column subsampling 0.5, row subsampling 0.9, and 500 rounds at learning rate 0.05 on tweets or 400 rounds at 0.1 on reviews. The 2022 thesis tuned depth 8, minimum child weight 6, $\eta = 0.1$ and $\gamma = 1.2$ on Word2Vec features by staged grid search; those settings under-fit sparse $n$-gram matrices (test F1 0.52 to 0.53 against 0.60 to 0.62 with the settings above on the hate corpus) and are retained in the configuration for reference only.
+
+\paragraph{Soft-voting ensemble} of the logistic regression, the calibrated SVM and XGBoost with equal weights, predicting the mean of the members' probabilities.
+
+\paragraph{CNN} following Kim~\cite{kim2014}: 128-dimensional embeddings, parallel convolutions of width 3, 4 and 5 with 128 filters each, rectified linear activation, global max pooling over time, concatenation, dropout 0.5, and a linear output layer.
+
+\paragraph{BiLSTM}~\cite{hochreiter1997}: the same embeddings, a bidirectional LSTM with 128 units per direction (64 on reviews), concatenation of max pooling and mean pooling over time, dropout 0.5, and a linear output layer.
+
+Both networks minimise the cross-entropy with Adam (learning rate $10^{-3}$, batch size 64, gradient-norm clipping at 5), with class weights inversely proportional to class frequency on the Twitter corpora, and stop early on the loss of a 10\,percent validation slice of the training fold (patience 2, at most 8 epochs on tweets; patience 1, at most 4 and 3 epochs on reviews). Seeds are fixed for the split, the folds, Gensim and PyTorch; Gensim's multithreaded training introduces run-to-run variation of the order of $10^{-3}$ in F1 for the embedding-based cells.
+
+\section{Evaluation protocol}
+\label{sec:protocol}
+\subsection{Metrics}
+Let $y_i \in \{0, 1\}$ be the label and $\hat{p}_i$ the predicted probability of the positive class for document $i$, and $\hat{y}_i(\tau) = \mathbb{1}[\hat{p}_i \ge \tau]$ the decision at threshold $\tau$. With $\mathrm{TP}$, $\mathrm{FP}$, $\mathrm{FN}$ the counts of true positives, false positives and false negatives at $\tau$,
+\begin{equation}
+\mathrm{P}(\tau) = \frac{\mathrm{TP}}{\mathrm{TP}+\mathrm{FP}}, \qquad
+\mathrm{R}(\tau) = \frac{\mathrm{TP}}{\mathrm{TP}+\mathrm{FN}}, \qquad
+\mathrm{F}_1(\tau) = \frac{2\,\mathrm{P}(\tau)\,\mathrm{R}(\tau)}{\mathrm{P}(\tau)+\mathrm{R}(\tau)}.
+\end{equation}
+ROC-AUC is the area under the curve of true-positive rate against false-positive rate over all $\tau$, equal to the probability that a random positive is scored above a random negative; average precision (PR-AUC) is the area under the precision-recall curve~\cite{davis2006}. For the three-class corpus the decision is the arg-max, F1 is the unweighted mean of the per-class F1 (macro F1), and ROC-AUC is the macro average of one-versus-rest areas. Accuracy is reported everywhere but is the primary metric only on the balanced IMDB corpus.
+
+\subsection{Procedure}
+The same procedure is applied to every cell (corpus, representation, model):
+\begin{enumerate}
+\item \textbf{Split.} The corpus is divided once into a training split and a held-out test split (stratified 80/20 with seed 42 for the Twitter corpora; the official split for IMDB). The test split is not touched until step 5.
+\item \textbf{Feature cache.} The training split is cleaned once. For each fold of a stratified $k$-fold partition ($k = 5$ on tweets, 3 on reviews) each representation is fitted on the fold's training part and applied to its validation part; each representation is also fitted on the whole training split and applied to the test split. The resulting matrices are cached and shared by every model evaluated on that representation, so that models are compared on identical inputs and no representation ever sees validation or test documents during fitting.
+\item \textbf{Out-of-fold probabilities.} Each model is trained on each fold's training matrix and scores the fold's validation matrix, giving one out-of-fold probability per training document.
+\item \textbf{Threshold and selection.} For binary corpora the threshold is
+\begin{equation}
+\tau^\ast = \arg\max_{\tau \in \{0.05, 0.06, \dots, 0.95\}} \mathrm{F}_1^{\mathrm{oof}}(\tau),
+\end{equation}
+computed on the out-of-fold probabilities~\cite{lipton2014}. The cross-validated F1 of the cell is $\mathrm{F}_1^{\mathrm{oof}}(\tau^\ast)$; its standard deviation across folds is recorded. The selected cell per corpus is the one with the highest cross-validated F1. The test split plays no part in any of this~\cite{cawley2010}.
+\item \textbf{Test.} The model is refitted on the whole training split and scores the test split once at $\tau^\ast$: accuracy, precision, recall, F1, ROC-AUC, average precision, per-class scores and the confusion matrix are recorded, together with F1 at the default threshold of 0.5 and the training time.
+\item \textbf{Persistence.} Out-of-fold and test probabilities are saved, so that every figure and table can be regenerated without retraining.
+\end{enumerate}
+
+\subsection{Rationale}
+Step 2 removes leakage~\cite{kaufman2012} and, by sharing matrices, makes the comparison between models exact and the benchmark several times cheaper. Step 4 removes selection bias~\cite{cawley2010} and replaces the fixed threshold of 0.3 used in the 2022 notebooks by a value that is optimal for each model. Step 5 scores the test split exactly once, so that the test numbers are an unbiased estimate of what the selected procedure would achieve on new data from the same distribution. The price of this rigour is that a model whose probability scale shifts between the fold models and the refitted model transfers its threshold imperfectly; Chapter~\ref{ch:results} measures that price.
+
+\subsection{Calibration and drift statistics}
+The reliability diagram bins test documents by predicted probability into quantile bins and plots the mean predicted probability of each bin against the observed positive rate; a calibrated model lies on the diagonal. For monitoring, the population stability index between a baseline histogram $e$ and a current histogram $a$ over the same bins is
+\begin{equation}
+\mathrm{PSI}(e, a) = \sum_b (a_b - e_b)\,\ln\frac{a_b}{e_b},
+\end{equation}
+with the usual warning level at 0.1 and alert at 0.25~\cite{siddiqi2006}; it is applied to the token-length distribution of inputs and to the distribution of predicted classes, alongside the out-of-vocabulary rate against the training vocabulary.

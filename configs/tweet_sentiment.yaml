@@ -1,0 +1,24 @@
+name: tweet-sentiment-ensemble
+seed: 42
+cv_folds: 2
+tracking: {enabled: false}
+
+datasets:
+  - name: tweet_sentiment
+    clean: {keep_hashtags: true, min_word_len: 2, remove_stopwords: false, stemmer: null}
+    split: {strategy: official}
+
+features:
+  tfidf: {type: tfidf, min_df: 2, max_features: 20000, ngram_range: [1, 2], sublinear_tf: true}
+
+models:
+  ensemble:
+    type: ensemble
+    names: [logistic_regression, linear_svm, naive_bayes]
+    members:
+      logistic_regression: {max_iter: 1000}
+      linear_svm: {calibration_cv: 2}
+      naive_bayes: {alpha: 1.0}
+
+grid:
+  ensemble: [tfidf]

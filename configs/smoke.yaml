@@ -1,0 +1,44 @@
+# Smoke grid: runs in about a minute. Used by CI and `sentiment-benchmark
+# benchmark --smoke`. When data/raw/ is absent it runs on the deterministic
+# synthetic corpus, so no data is needed (or committed) to exercise the
+# whole pipeline.
+
+name: sentiment-benchmark-smoke
+seed: 42
+cv_folds: 2
+
+tracking:
+  enabled: false
+
+reports_dir: reports/smoke
+models_dir: models/smoke
+
+datasets:
+  - name: twitter_hate
+    max_rows: 300
+    clean: {keep_hashtags: true, min_word_len: 3, remove_stopwords: true, stemmer: porter}
+  - name: vaccination
+    max_rows: 300
+    clean: {keep_hashtags: false, min_word_len: 2, remove_stopwords: true, stemmer: porter}
+
+features:
+  bow:      {type: bow, min_df: 1, max_features: 500}
+  tfidf:    {type: tfidf, min_df: 1, max_features: 500}
+  word2vec: {type: word2vec, vector_size: 32, min_count: 1, epochs: 3}
+  sequence: {type: sequence}
+
+models:
+  naive_bayes:         {type: naive_bayes}
+  logistic_regression: {type: logistic_regression, class_weight: balanced}
+  xgboost:             {type: xgboost, n_estimators: 20, max_depth: 3}
+  ensemble:            {type: ensemble, names: [logistic_regression, xgboost], members: {xgboost: {n_estimators: 20, max_depth: 3}}}
+  cnn:                 {type: cnn, embed_dim: 16, n_filters: 8, epochs: 2, max_vocab: 500, max_len: 24, val_fraction: 0.2}
+  lstm:                {type: lstm, embed_dim: 16, hidden: 8, epochs: 2, max_vocab: 500, max_len: 24, val_fraction: 0.2}
+
+grid:
+  naive_bayes:         [bow]
+  logistic_regression: [tfidf, word2vec]
+  xgboost:             [tfidf]
+  ensemble:            [tfidf]
+  cnn:                 [sequence]
+  lstm:                [sequence]

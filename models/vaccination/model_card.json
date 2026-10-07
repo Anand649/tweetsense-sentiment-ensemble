@@ -1,0 +1,85 @@
+{
+  "dataset": "vaccination",
+  "task": "multiclass",
+  "label_names": [
+    "negative",
+    "neutral",
+    "positive"
+  ],
+  "model": "cnn",
+  "features": "sequence",
+  "threshold": null,
+  "selection": "highest cross-validated F1 on the training split",
+  "metrics": {
+    "cv_f1_mean": 0.7992550129646281,
+    "cv_f1_std": 0.01248159965927661,
+    "test_accuracy": 0.858522452921294,
+    "test_precision": 0.7978252297986642,
+    "test_recall": 0.8304779692316994,
+    "test_f1": 0.8120311216246394,
+    "test_f1_weighted": 0.8606786363616324,
+    "test_roc_auc": 0.9482228988229989,
+    "cv_seconds": 41.2
+  },
+  "per_class": [
+    {
+      "class": "negative",
+      "support": 205,
+      "precision": 0.6386554621848739,
+      "recall": 0.7414634146341463,
+      "f1": 0.6862302483069977
+    },
+    {
+      "class": "neutral",
+      "support": 1172,
+      "precision": 0.9299539170506912,
+      "recall": 0.8609215017064846,
+      "f1": 0.8941072219760744
+    },
+    {
+      "class": "positive",
+      "support": 694,
+      "precision": 0.8248663101604278,
+      "recall": 0.8890489913544669,
+      "f1": 0.855755894590846
+    }
+  ],
+  "feature_params": {
+    "type": "sequence"
+  },
+  "model_params": {
+    "type": "cnn",
+    "embed_dim": 128,
+    "embedding_init": "word2vec",
+    "kernel_sizes": [
+      3,
+      4,
+      5
+    ],
+    "n_filters": 128,
+    "dropout": 0.5,
+    "epochs": 8,
+    "patience": 2,
+    "batch_size": 64,
+    "lr": 0.001,
+    "class_weight": "balanced",
+    "max_len": 48
+  },
+  "clean": {
+    "lowercase": true,
+    "remove_urls": true,
+    "remove_mentions": true,
+    "keep_hashtags": false,
+    "remove_stopwords": true,
+    "min_word_len": 2,
+    "stemmer": "porter"
+  },
+  "training_rows": 8282,
+  "data_fingerprint": "fcec477735047887",
+  "config": "configs/benchmark.yaml",
+  "git_commit": null,
+  "package_version": "1.0.0",
+  "python": "3.12.10",
+  "tracking_backend": "mlflow (sqlite:////Users/sium/Desktop/Lykios/resume/pipeline/sentiment-ml-benchmark/reports/mlflow.db)",
+  "created": "2026-08-22T12:05:37.009503+00:00"
+}

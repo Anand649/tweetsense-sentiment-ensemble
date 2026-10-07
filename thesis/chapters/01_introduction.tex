@@ -1,0 +1,41 @@
+\section{Context}
+Sentiment analysis, also called opinion mining, is the computational treatment of the subjective content of text: whether a review recommends a product, whether a tweet expresses approval of a vaccine, whether a message is abusive~\cite{pang2008,liu2012}. Social-media platforms turned it from a niche of computational linguistics into a routine industrial need, and Twitter in particular became the standard test bed: short, informal, noisy documents, produced at a rate no human team can read, about every topic of public interest. Academic and applied work on the topic now spans two decades and several technological generations, from lexicon look-ups through bag-of-words classifiers and distributed word representations to pretrained transformers and, since 2022, large language models that classify sentiment from a natural-language instruction without any task-specific training.
+
+With each generation came a wave of comparison studies. A typical one takes one or two corpora, a handful of classifiers, and reports a table of accuracies. The author's undergraduate thesis~\cite{sium2022}, completed at Nanjing University of Information Science and Technology in May 2022, was such a study: a survey of sentiment analysis and deep learning approaches followed by two experiments, racist and sexist tweet detection and COVID-19 vaccine sentiment, in which naive Bayes, logistic regression, a support vector machine, a random forest and XGBoost were compared in Jupyter notebooks. Its conclusion that naive Bayes classified the hate corpus with 94\,percent accuracy was, as Chapter~\ref{ch:results} shows, an artefact of the way the experiment was evaluated rather than a property of the classifier.
+
+\section{Problem}
+The problem this thesis addresses is methodological before it is algorithmic. Four evaluation choices, all common and all present in the 2022 study, each introduce errors of the same order as the differences between methods that such studies rank:
+
+\begin{enumerate}
+\item \textbf{Leakage through feature fitting.} Fitting a vocabulary, an IDF weighting or an embedding model on the union of training and test documents lets information about the test set into the representation~\cite{kaufman2012}. The effect is subtle for count features and large for learned embeddings.
+\item \textbf{Selection on the reported split.} Choosing the model, the representation or a hyper-parameter on the same data that is then reported as the result overstates that result~\cite{cawley2010}.
+\item \textbf{Accuracy under imbalance.} On a corpus in which 93\,percent of the documents belong to one class, a classifier that never predicts the other class is 93\,percent accurate. Accuracy says almost nothing about the minority class that is usually the point of the task.
+\item \textbf{Fixed decision thresholds.} Probabilistic classifiers are compared at a threshold of 0.5, or at a value chosen once by hand. The F1-optimal threshold depends on the classifier and on the class prior~\cite{lipton2014}, and modern networks are systematically over-confident~\cite{guo2017}, so a fixed threshold measures calibration as much as it measures discrimination.
+\end{enumerate}
+
+A second problem is practical. A study that lives in notebooks cannot be re-run, extended or deployed; its numbers cannot be regenerated when a library changes; and its models, if they were ever worth using, have no path to use. Machine-learning systems accumulate operational debt in precisely this way~\cite{sculley2015}.
+
+\section{Objectives}
+The thesis has four objectives.
+\begin{enumerate}
+\item To define one evaluation protocol that removes the four sources of error above, and to apply it without exception to every combination of corpus, representation and model in the study.
+\item To extend the 2022 comparison with the neural models it proposed as future work, a soft-voting ensemble, and a third corpus of long, balanced documents, so that the conclusions can be tested across text length and class balance.
+\item To analyse the results in a way that separates the ranking ability of a classifier from the calibration of its scores and the transfer of its decision threshold, and to quantify what each evaluation choice is worth.
+\item To deliver the benchmark as a reproducible and operable system, in which every reported number is regenerated from saved predictions, every run is tracked, the selected models are documented and served, and their behaviour in production is monitored.
+\end{enumerate}
+
+\section{Contributions}
+\begin{itemize}
+\item A 56-cell benchmark (three corpora, five representations, eight model families) under a single leakage-free protocol: representations fitted per cross-validation fold and shared by all models on that fold, decision thresholds chosen on out-of-fold predictions, model selection by cross-validated F1, and one scoring pass on a held-out split.
+\item The finding that, on the imbalanced hate-speech task, all eight families lie within 0.013 ROC-AUC of each other while their positive-class F1 spans 0.076, and that this spread is explained by calibration and threshold transfer: threshold tuning is worth up to 0.09 F1 for classical models and 0.14 for networks, and the model with the best cross-validated F1 transfers its threshold worst.
+\item Evidence across three corpora that sparse $n$-gram representations remain the strongest input for classical learners on short text, that learned document embeddings are the weakest representation everywhere, and that on balanced long documents linear models on TF-IDF match networks trained from scratch at a hundredth of the training cost.
+\item A quantified comparison with the original study, showing that its ranking of the classical models survives a rigorous protocol while its absolute numbers, including the headline 94\,percent, do not.
+\item A reference implementation: configuration-defined experiments, a feature cache that guarantees identical inputs across models, experiment tracking, model cards, a prediction service over PostgreSQL, population-stability drift monitoring, continuous integration against a real database, container images and infrastructure definitions for a public cloud, with no credential or dataset location in the code and no data in the repository.
+\item A research programme for 2026 (Chapter~\ref{ch:future}) that follows from the evidence: pretrained and large language models as upper references and as annotators, cross-validation bagging and conformal prediction for calibrated decisions, human annotation for the vaccine corpus, fairness auditing of hate-speech classifiers, and drift-triggered retraining.
+\end{itemize}
+
+\section{Scope}
+The study is deliberately restricted to models that can be trained from scratch on a laptop CPU in minutes. Pretrained transformers and large language models are discussed as related work and as future work and are used to bound the remaining gap on IMDB, but they are not part of the grid; the question the grid answers is what careful evaluation does to the comparison that applied studies most often make. English text only is considered. The vaccine corpus has no human labels and is evaluated against a lexicon labeller, as in the original study; the consequences are discussed wherever that corpus is used.
+
+\section{Outline}
+Chapter~\ref{ch:background} reviews sentiment analysis, the classifiers and representations used, the methodology literature on leakage, selection, thresholds and calibration, and the state of the field in 2026. Chapter~\ref{ch:data} describes the three corpora. Chapter~\ref{ch:method} defines the normalisation, representations, models and evaluation protocol, with the metrics stated formally. Chapter~\ref{ch:system} describes the system that implements the benchmark and operates its models. Chapter~\ref{ch:results} presents the experiments and their analysis. Chapter~\ref{ch:discussion} interprets the results and states the threats to their validity. Chapter~\ref{ch:future} concludes and sets out future work. The appendices contain the full results table, reproduction instructions and a model card.

@@ -1,0 +1,42 @@
+The protocol of Chapter~\ref{ch:method} is only as good as its implementation, and a result that cannot be regenerated is not a result. This chapter describes the system that runs the benchmark, tracks it, exports its models and operates them. Figure~\ref{fig:arch} gives the overview; the implementation is public and is the reference for every detail omitted here.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{architecture.png}
+\caption{System overview. Top: the benchmark from raw corpora to scored cells. Middle: experiment tracking and export of the selected pipeline with its model card and monitoring baseline. Bottom: the prediction service, the relational store and the drift monitor.}
+\label{fig:arch}
+\end{figure}
+
+\section{Design principles}
+Four principles governed the design.
+\begin{enumerate}
+\item \textbf{Configuration, not code, defines an experiment.} One YAML file lists the corpora and their cleaning settings, the representations and their parameters, the models and their hyper-parameters, the grid of model-to-representation pairs, the number of folds and the seed. The file is logged with every run, so any results table can be traced to the exact grid that produced it.
+\item \textbf{One pipeline object from text to decision.} Cleaning, representation and model are composed into a single scikit-learn pipeline. The object that is evaluated is the object that is exported and served; there is no second implementation of the cleaning for production.
+\item \textbf{Nothing sensitive or heavy in the repository.} Dataset locations, database connection strings and API tokens are read from the environment; raw corpora, trained weights, probability dumps and tracking stores are ignored by version control. A deterministic synthetic corpus generated in code lets the test suite and continuous integration exercise every code path without data.
+\item \textbf{Regenerable outputs.} Saved probabilities feed a report command that rebuilds every figure, the results tables and the tables of this document; the model cards carry the data fingerprint, configuration path, software versions and commit.
+\end{enumerate}
+
+\section{Benchmark execution}
+\paragraph{Loaders and validation.} Each corpus has a loader that returns a frame with exactly two columns, text and integer label, validates it (no empty texts, at least two classes), and exposes its label names and task type. The vaccine loader performs the lexicon labelling and caches the result next to the raw file. A manifest records the SHA-256 hash, row count and class balance of the raw files.
+
+\paragraph{Feature cache.} A cache object cleans the training split once, fits each representation per fold and on the full split on demand, and hands the matrices to every model evaluated on that representation. For the hate corpus this reduces the number of Word2Vec and Doc2Vec fits from 24 to 6 each and makes the inputs to different models identical.
+
+\paragraph{Models as estimators.} Classical models are scikit-learn estimators. The PyTorch networks are wrapped in a class with the estimator interface (\texttt{fit}, \texttt{predict\_proba}, \texttt{predict}, parameter introspection) and custom pickling that serialises the network state, so that they cross-validate, export and reload exactly like the classical models.
+
+\paragraph{Evaluation and persistence.} The orchestrator runs the protocol of Section~\ref{sec:protocol} for every cell, writes the out-of-fold and test probabilities to disk, computes metrics and per-class reports, draws the confusion matrix, and appends a row to the results table. Results of separate runs (for example the IMDB grid run on its own) merge into the same table by corpus.
+
+\paragraph{Tracking.} Each cell is one MLflow~\cite{zaharia2018} run with its parameters, cross-validated and test metrics, threshold, timings and confusion matrix; an extra run per corpus logs the exported pipeline as an artifact. The store is a local SQLite database by default and any tracking server otherwise. Every run is also appended to a line-delimited JSON log, which a replay command can push into a store later, so that a run completed without a tracking server is never lost.
+
+\paragraph{Export.} The selected pipeline per corpus is serialised together with a model card~\cite{mitchell2019} in JSON (corpus, task, class names, model and representation, threshold, selection rule, all metrics, per-class scores, parameters, cleaning settings, training rows, data fingerprint, configuration path, commit, package version, interpreter version, timestamp) and a monitoring baseline (token-length histogram, training vocabulary, predicted-class distribution on the training data). Appendix~\ref{app:card} reproduces one card.
+
+\section{Serving}
+A Flask application loads the exported pipelines and exposes a dashboard (model cards, results table and figures), \texttt{POST /api/predict} for a single text or a batch of up to 200, and \texttt{GET /health}, \texttt{/api/models} and \texttt{/api/stats}. Every prediction is written, with its model, confidence and latency, to a relational store through SQLAlchemy; the store is PostgreSQL in the container stack and on the cloud and SQLite on a laptop, selected by one environment variable. The container image runs the application under a production WSGI server with a health check.
+
+\section{Monitoring}
+A monitor command compares a batch of recent inputs, read either from a CSV file or from the last $h$ hours of traffic in the store, with the training baseline: the population stability index of the token-length distribution and of the predicted-class distribution, the out-of-vocabulary rate against the training vocabulary, and the share of inputs that become empty after cleaning. Each statistic has warning and alert levels; the report is stored with its timestamp, and the command exits with a non-zero status on alert so that it can gate an automated pipeline. On the cloud it runs daily as a scheduled task against production traffic.
+
+\section{Quality gates and deployment}
+The test suite (44 tests) covers the cleaner, every representation, every model family including pickling of the networks, the metrics and threshold search, the drift statistics, the prediction store against both SQLite and PostgreSQL, the Flask routes, and an end-to-end run of the smoke benchmark on the synthetic corpus with export and figure generation. Continuous integration runs linting, the suite against a PostgreSQL service, the smoke benchmark and a container build on every change, on two Python versions. Infrastructure definitions provision, on a public cloud, a container registry, a serverless container service behind an application load balancer with HTTPS and CPU-based autoscaling, a managed PostgreSQL instance, an encrypted and versioned object store for artifacts and model bundles, secrets injected from a parameter store, centralised logs and the scheduled drift task; a release workflow builds the image, pushes it and rolls the service with automatic rollback on failed health checks, using short-lived federated credentials rather than stored keys.
+
+\section{Reproducibility}
+A reader with the three corpora can reproduce every number in this thesis from the public repository with the commands in Appendix~\ref{app:repro}. Without the corpora, the same commands run the whole pipeline on the synthetic corpus in about one minute, which is what continuous integration does. The paper and this thesis are generated from the same results table by scripts, so that no number in either document is typed by hand.

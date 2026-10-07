@@ -1,0 +1,114 @@
+\section{Experimental setup}
+All results were produced on a laptop CPU (eight cores, no accelerator) with pinned package versions (scikit-learn 1.5, XGBoost 2.0, Gensim 4.4, PyTorch 2.13). The Twitter grid comprises 22 cells per corpus: naive Bayes on counts and TF-IDF; logistic regression, the SVM, the forest and XGBoost on all four classical representations; the ensemble on TF-IDF and Word2Vec; the CNN and BiLSTM on sequences. The IMDB grid is reduced to 12 cells for cost: no Doc2Vec, the forest and the SVM on TF-IDF only, 3-fold cross-validation and shorter network schedules. The whole study runs in about two hours. Appendix~\ref{app:full} lists every cell.
+
+\section{Selected models}
+\input{tables/selected}
+Table~\ref{tab:selected} gives the cell selected per corpus by cross-validated F1 and its test scores. On both Twitter corpora the CNN is selected; on IMDB the calibrated linear SVM on TF-IDF, by 0.001 of cross-validated F1 over logistic regression. The per-class scores of these three models are in Table~\ref{tab:perclass}.
+
+\input{tables/perclass}
+
+\section{Model families}
+\input{tables/families}
+Table~\ref{tab:families} shows every family at its best representation. Three patterns are visible before any analysis: the families are close on the hate corpus (test F1 0.608 to 0.684) and on IMDB (0.842 to 0.888) and further apart on the vaccine corpus (0.698 to 0.812); the CNN is the best family on both Twitter corpora by cross-validated F1 but not by test F1 on the hate corpus; and the fold standard deviations are 0.01 to 0.02 on the Twitter corpora and 0.002 on IMDB, which sets the resolution at which differences can be read.
+
+\section{Ranking ability versus thresholding on the hate corpus}
+\label{sec:rankvsthr}
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.62\textwidth]{roc_twitter_hate.png}
+\caption{Hate corpus: ROC curves of the best representation per model family on the test split. All eight families lie within 0.013 of each other in area.}
+\label{fig:roc}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.62\textwidth]{pr_twitter_hate.png}
+\caption{Hate corpus: precision-recall curves of the same cells. The dashed line is the positive rate (0.07).}
+\label{fig:pr}
+\end{figure}
+
+Figures~\ref{fig:roc} and~\ref{fig:pr} show the ROC and precision-recall curves of the best cell per family on the hate corpus. Every family reaches a test ROC-AUC between 0.939 (calibrated SVM) and 0.952 (XGBoost on Word2Vec), and average precision between 0.695 and 0.762; the eight families order the test tweets almost equally well. Their F1 on the positive class, however, spans 0.608 to 0.684 (Table~\ref{tab:families}), and the spread is explained by calibration and threshold transfer rather than by ranking.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.62\textwidth]{calibration_twitter_hate.png}
+\caption{Hate corpus: reliability diagram (quantile bins) of the five families with the highest cross-validated F1. The class-weighted networks are over-confident; the tree and linear models are close to the diagonal.}
+\label{fig:calib}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.66\textwidth]{threshold_twitter_hate.png}
+\caption{Hate corpus: F1, precision and recall of the CNN as a function of the decision threshold on out-of-fold predictions. The optimum lies at 0.90; the default of 0.5 gives recall 0.84 at precision 0.41.}
+\label{fig:thr}
+\end{figure}
+
+Figure~\ref{fig:calib} shows why. The class-weighted networks are strongly over-confident: in the top decile of predicted probability the CNN predicts 0.87 on average where the observed positive rate is 0.51. The calibrated SVM, the forest, XGBoost and the ensemble lie close to the diagonal. Accordingly the networks' F1-optimal thresholds are 0.85 (BiLSTM) and 0.90 (CNN, Figure~\ref{fig:thr}), while the classical models' lie between 0.23 and 0.69.
+
+\input{tables/threshold}
+Table~\ref{tab:threshold} quantifies both effects. \emph{Threshold tuning.} Choosing the threshold on out-of-fold predictions improves test F1 over the default of 0.5 for seven of the eight families: by 0.008 to 0.087 for the classical models (logistic regression on TF-IDF rises from 0.586 to 0.654) and by 0.093 and 0.144 for the CNN and BiLSTM; the random forest, whose optimum lies at 0.40, loses 0.005. The fixed threshold of 0.3 used in the 2022 notebooks would have been close to optimal for naive Bayes and XGBoost and far from it for logistic regression (optimum 0.69) and the networks. \emph{Threshold transfer.} The threshold is chosen on probabilities of models trained on four fifths of the training split and applied to a model refitted on all of it. For the calibrated SVM, logistic regression, the ensemble, the forest and XGBoost the transferred threshold reproduces the cross-validated F1 within 0.02; for the CNN it costs 0.064 (cross-validated 0.672, test 0.608) and for the BiLSTM 0.013. Early stopping ends the refitted network at a different epoch from the fold models, and an over-confident score scale shifts with it. The CNN nevertheless remains the model selected by the protocol, because selection uses cross-validated F1 only; the outcome is reported rather than overridden, and the remedy, averaging the fold models instead of refitting, is discussed in Chapter~\ref{ch:future}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.9\textwidth]{cv_twitter_hate.png}
+\caption{Hate corpus: cross-validated F1 (bars, with fold standard deviation) against test F1 (dots) for all 22 cells. The top eight cells are within fold noise of each other.}
+\label{fig:cv}
+\end{figure}
+
+Figure~\ref{fig:cv} places the differences in context. Fold standard deviations are 0.01 to 0.02, so the top eight cells (cross-validated F1 0.650 to 0.672) are statistically indistinguishable on this corpus, and a claim that a network beats a linear model here would not survive the confidence intervals. At its tuned threshold the selected CNN trades recall (0.498) for precision (0.782) on the 448 positive test tweets (Table~\ref{tab:perclass}).
+
+\section{Representations}
+\input{tables/features}
+Table~\ref{tab:features} gives the best model per representation and corpus, and Figure~\ref{fig:heatmap} the full model-by-representation grid on the hate corpus. Sparse $n$-gram features are the strongest input for classical learners on all three corpora: TF-IDF or counts give the best cell for every model except XGBoost, which reaches its best hate-speech score (0.684) on mean-pooled Word2Vec. Doc2Vec is the weakest representation for every model on both Twitter corpora (test F1 0.42 to 0.56 on hate, 0.42 to 0.48 on vaccine): with documents of ten to twenty tokens, inferred paragraph vectors carry little beyond noise, and linear models on them fall below naive Bayes on counts. Mean-pooled Word2Vec sits between the two; it helps the tree models, which can exploit interactions between embedding dimensions, and hurts the linear ones.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.75\textwidth]{heatmap_twitter_hate.png}
+\caption{Hate corpus: test F1 of every model and representation.}
+\label{fig:heatmap}
+\end{figure}
+
+On the vaccine corpus the gap is largest: embedding features reach 0.42 to 0.55 macro F1 against 0.70 to 0.78 for $n$-gram models. The explanation is the labeller: TextBlob responds to the presence of specific adjectives, which a count vector preserves exactly and a mean of word vectors blurs. This is the clearest illustration in the study of how a weak-supervision target shapes which representations appear to work.
+
+\section{The vaccine corpus}
+The CNN is clearly ahead on the three-class task: macro F1 0.812 (cross-validated 0.799 $\pm$ 0.012, accuracy 0.859) against 0.775 for logistic regression on counts, 0.757 for the TF-IDF ensemble and for XGBoost on counts, and 0.779 for the BiLSTM. Table~\ref{tab:perclass} shows the minority negative class (205 test tweets) at F1 0.686 with recall 0.741, the neutral majority at 0.894 and positive at 0.856; Figure~\ref{fig:conf_vacc} gives the confusion matrix and Figure~\ref{fig:roc_vacc} the one-versus-rest ROC curves. Because the target is the sign of a lexicon polarity, a model that captures short patterns around lexicon words, negation and intensifiers among them, reproduces the labeller better than a bag of words can. These numbers should be read as agreement with TextBlob, not as accuracy against human judgement.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.48\textwidth]{confusion_vaccination.png}\hfill
+\includegraphics[width=0.48\textwidth]{roc_vaccination.png}
+\caption{Vaccine corpus, selected CNN: confusion matrix (left) and one-versus-rest ROC curves (right) on the test split.}
+\label{fig:conf_vacc}
+\end{figure}
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.75\textwidth]{cv_vaccination.png}
+\caption{Vaccine corpus: cross-validated macro F1 against test macro F1 for all 22 cells.}
+\label{fig:roc_vacc}
+\end{figure}
+
+\section{IMDB}
+On balanced, long documents the picture inverts. Logistic regression (F1 0.886, accuracy 0.885), the calibrated SVM (0.884, 0.882) and their ensemble with XGBoost (0.888, 0.885) on 20,000 TF-IDF terms are within 0.004 of each other with fold standard deviations of 0.002; the BiLSTM (0.876) and the CNN (0.875) trained from scratch do not reach them, and the tree models trail by 0.02 to 0.03. The tuned thresholds of the best cells lie at 0.45 to 0.50, so thresholding is immaterial on this task; Figure~\ref{fig:imdb} shows the precision-recall curves and the CV-versus-test agreement. Accuracies of 88.2 to 88.5\,percent agree with the 88.9\,percent reported by Maas et al.~\cite{maas2011} for their learned word vectors with a linear classifier, sit below the 91.2\,percent of NB-SVM over bigrams~\cite{wang2012}, and well below the 95\,percent and above of fine-tuned transformers~\cite{devlin2019}. This locates the grid precisely: it is the ceiling of models that train from scratch on a CPU in minutes.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.48\textwidth]{pr_imdb.png}\hfill
+\includegraphics[width=0.48\textwidth]{calibration_imdb.png}
+\caption{IMDB: precision-recall curves of the best cell per family (left) and reliability diagram (right). On balanced long documents every family is well calibrated and the linear models lead.}
+\label{fig:imdb}
+\end{figure}
+
+\section{Cost}
+\input{tables/cost}
+Table~\ref{tab:cost} reports the time to fit the best cell per family on the full training split, and Figure~\ref{fig:eff} plots test F1 against that time on the hate corpus. The linear models train in well under a second on tweets and in under a second on reviews; the forest and XGBoost in seconds to tens of seconds; the networks in 20 to 30 seconds on tweets and 80 to 90 seconds on reviews. On the hate corpus the resulting differences in F1 are within one to two fold standard deviations; on IMDB the cheapest models are also the most accurate. Whether the 0.04 to 0.05 macro-F1 advantage of the CNN on the vaccine corpus is worth a hundredfold increase in training time and an uncalibrated score scale is an application decision that the benchmark makes explicit rather than hides.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.75\textwidth]{efficiency_twitter_hate.png}
+\caption{Hate corpus: test F1 against training time (log scale) for all 22 cells.}
+\label{fig:eff}
+\end{figure}
+
+\section{Comparison with the 2022 study}
+\input{tables/thennow}
+Table~\ref{tab:thennow} sets the numbers of the 2022 notebooks against those of the present protocol for the sixteen cells the two have in common. The 2022 numbers are validation F1 at a fixed threshold of 0.3 on a single split, with vectorizers and embeddings fitted on training and test documents together; the 2026 numbers are test F1 at the out-of-fold tuned threshold with representations fitted per fold. Fourteen of the sixteen cells improve, by 0.03 to 0.46, and the improvement is largest exactly where the old protocol was weakest: on Doc2Vec, where training-time paragraph vectors for training documents and inferred vectors for test documents gave the two sets different distributions, and on the linear models over $n$-grams, where the threshold of 0.3 was far from optimal. The two exceptions are logistic regression and the SVM on Word2Vec, which score 0.055 lower under the present protocol (0.614 to 0.559 and 0.613 to 0.557): in 2022 the embedding was trained on the test documents as well, so every test tweet was in-sample for the representation, which is precisely the leakage the protocol removes. The ranking of the representations is preserved (Word2Vec or $n$-grams first, Doc2Vec last) and so, broadly, is the ranking of the models. The headline of the 2022 study, 94\,percent accuracy for naive Bayes, was the majority-class rate of a 93/7 split inflated by leakage; under the present protocol naive Bayes reaches F1 0.658 at an accuracy of 0.954, which is mostly that same majority rate. The conclusion is that the original study ranked its methods approximately right and measured them wrong.

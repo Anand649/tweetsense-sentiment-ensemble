@@ -1,0 +1,16 @@
+\begin{table}[t]
+\centering
+\caption{Feature representations: best model per feature set and dataset (test F1, model in parentheses). Doc2Vec was not run on IMDB.}
+\label{tab:features}
+\begin{tabular}{llll}
+\toprule
+Features & Hate & Vaccine & IMDB \\
+\midrule
+counts & 0.636 (NB) & 0.775 (LR) & 0.856 (LR) \\
+TF-IDF & 0.680 (RF) & 0.757 (Ens.) & 0.884 (SVM) \\
+Word2Vec & 0.684 (XGB) & 0.552 (LR) & 0.846 (XGB) \\
+Doc2Vec & 0.557 (XGB) & 0.475 (LR) & n/a \\
+sequence & 0.608 (CNN) & 0.812 (CNN) & 0.876 (BiLSTM) \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>TweetSense | Model analysis</title><link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head>
+<body>
+<div class="shell">
+  <nav class="topbar" aria-label="Main navigation"><a class="brand" href="/"><span class="brand-mark">◉</span> TweetSense</a><div class="nav-links"><a href="/">Analyze</a><a class="active" href="/analysis">Model analysis</a></div><span class="nav-pill">Ensemble learning</span></nav>
+  <main>
+    <section class="hero analysis-hero"><div class="eyebrow"><span class="dot"></span> MODEL TRANSPARENCY</div><h1>How the model <em>performs.</em></h1><p>Evaluation on real, labeled tweets from the TweetEval sentiment dataset. The test split was kept separate from training.</p></section>
+    {% set card = cards.get('tweet_sentiment') %}
+    {% if card and not card.error %}
+    <section class="stat-grid" aria-label="Evaluation summary"><div class="stat-card"><span>Test accuracy</span><strong>{{ '%.1f%%' % (card.metrics.test_accuracy * 100) }}</strong></div><div class="stat-card"><span>Macro F1</span><strong>{{ '%.1f%%' % (card.metrics.test_f1 * 100) }}</strong></div><div class="stat-card"><span>Training tweets</span><strong>{{ '{:,}'.format(card.training_rows) }}</strong></div><div class="stat-card"><span>Held-out tweets</span><strong>{{ '{:,}'.format(card.per_class | sum(attribute='support')) }}</strong></div></section>
+    <section class="analysis-section"><h2>How it works</h2><p>TF-IDF converts each tweet into word and phrase features. A soft vote combines the class probabilities from logistic regression, calibrated linear SVM, and Multinomial Naive Bayes. The displayed metrics come from the official held-out TweetEval test split.</p><div class="scroll"><table><thead><tr><th>Class</th><th>Precision</th><th>Recall</th><th>F1</th><th>Test tweets</th></tr></thead><tbody>{% for row in card.per_class %}<tr><td>{{ row['class'] | title }}</td><td>{{ '%.3f' % row.precision }}</td><td>{{ '%.3f' % row.recall }}</td><td>{{ '%.3f' % row.f1 }}</td><td>{{ '{:,}'.format(row.support) }}</td></tr>{% endfor %}</tbody></table></div></section>
+    {% else %}<section class="analysis-section"><h2>No evaluated model yet</h2><p>Run the TweetEval training command in the README to generate this report.</p></section>{% endif %}
+    {% if figures %}<section class="analysis-section"><h2>Evaluation charts</h2><p>These figures are generated from the model’s predictions and saved probabilities.</p><div class="chart-grid">{% for figure in figures %}<figure class="chart-card"><img src="{{ url_for('figure', name=figure) }}" alt="{{ figure.replace('_', ' ').replace('.png', '') }}" loading="lazy"><figcaption>{{ figure.replace('tweet_sentiment', '').replace('_', ' ').replace('.png', '') | title }}</figcaption></figure>{% endfor %}</div></section>{% endif %}
+    {% if results %}<section class="analysis-section"><h2>Benchmark results</h2><p>Cross-validation is used for model selection; test metrics are reported separately.</p><div class="scroll"><table><thead><tr>{% for key in results[0].keys() %}<th>{{ key.replace('test_', '').replace('_', ' ') }}</th>{% endfor %}</tr></thead><tbody>{% for row in results %}<tr>{% for value in row.values() %}<td>{{ value }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div></section>{% endif %}
+  </main><footer>TweetSense · <a href="/">Analyze a tweet</a></footer>
+</div>
+</body></html>

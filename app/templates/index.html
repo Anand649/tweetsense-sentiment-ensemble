@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TweetSense | Sentiment analysis</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="shell">
+    <nav class="topbar" aria-label="Main navigation">
+      <a class="brand" href="/"><span class="brand-mark">◉</span> TweetSense</a>
+      <div class="nav-links"><a class="active" href="/">Analyze</a><a href="/analysis">Model analysis</a></div>
+      <span class="nav-pill">Ensemble learning</span>
+    </nav>
+    <main>
+      <section class="hero"><div class="eyebrow"><span class="dot"></span> SOCIAL TEXT INTELLIGENCE</div><h1>Understand the feeling<br><em>behind every tweet.</em></h1><p>Enter a post to see its predicted sentiment and the model’s confidence across all three classes.</p></section>
+      <div class="workbench">
+        <section class="panel input-panel" aria-labelledby="input-title">
+          <div class="panel-heading"><div><span class="step">01 / INPUT</span><h2 id="input-title">Analyze a post</h2></div><span class="panel-icon">↗</span></div>
+          {% if models %}
+          <form id="predict-form">
+            <label for="dataset">Model</label><select id="dataset" name="dataset">{% for model in models %}<option value="{{ model }}" {% if model == preferred %}selected{% endif %}>{{ 'Tweet sentiment · positive / neutral / negative' if model == 'tweet_sentiment' else model.replace('_', ' ').title() }}</option>{% endfor %}</select>
+            <label for="text">Tweet or short message</label><textarea id="text" name="text" maxlength="5000" rows="7" placeholder="Type a tweet here, or try one of the examples below..."></textarea>
+            <div class="examples" aria-label="Example posts"><button type="button" class="example" data-text="I love how easy this app is to use!">Positive example</button><button type="button" class="example" data-text="The update is available today.">Neutral example</button><button type="button" class="example" data-text="This service is frustrating and disappointing.">Negative example</button></div>
+            <button class="primary-button" type="submit">Analyze sentiment <span aria-hidden="true">→</span></button>
+          </form>
+          {% else %}<div class="empty-state"><h3>No trained model yet</h3><p>Train the TweetEval ensemble with the command in the README, then refresh this page.</p></div>{% endif %}
+        </section>
+        <section class="panel output-panel" aria-labelledby="output-title">
+          <div class="panel-heading"><div><span class="step">02 / RESULT</span><h2 id="output-title">Sentiment output</h2></div><span class="panel-icon">✳</span></div>
+          <div id="result-empty" class="result-empty"><div class="orbit">◎</div><h3>Your analysis appears here</h3><p>Submit a tweet to see the predicted label, confidence, and probability breakdown.</p></div>
+          <div id="result-loading" class="result-empty" hidden><div class="orbit loading">◎</div><h3>Analyzing your post…</h3><p>Running the ensemble model.</p></div>
+          <div id="result-error" class="error-message" role="alert" hidden></div>
+          <div id="result-data" hidden>
+            <div class="verdict"><span id="verdict-icon" class="verdict-icon">●</span><div><div class="small-caption">PREDICTED SENTIMENT</div><div id="verdict-label" class="verdict-label"></div></div></div>
+            <div class="confidence-line"><span>Model confidence</span><strong id="confidence"></strong></div><div id="probabilities" class="probabilities"></div>
+            <div class="result-meta"><span id="model-used"></span><span id="latency"></span></div><p class="result-note">Confidence reflects model output. Short, ironic, or ambiguous posts can be misclassified.</p>
+          </div>
+        </section>
+      </div>
+      <section class="info-strip"><div><span class="info-icon">◈</span><div><strong>Real tweet data</strong><span>TweetEval sentiment labels</span></div></div><div><span class="info-icon">⟡</span><div><strong>Three classifiers</strong><span>Logistic regression, SVM, Naive Bayes</span></div></div><div><span class="info-icon">▣</span><div><strong>Transparent results</strong><span><a href="/analysis">See evaluation and charts →</a></span></div></div></section>
+    </main>
+    <footer>TweetSense · A sentiment analysis demo powered by a soft-voting ensemble.</footer>
+  </div>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>

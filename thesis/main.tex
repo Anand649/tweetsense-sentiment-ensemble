@@ -1,0 +1,117 @@
+\documentclass[11pt,a4paper,oneside]{report}
+% ---------------------------------------------------------------------------
+% Thesis: Leakage-Free Benchmarking of Classical and Neural Sentiment
+% Classifiers, with a Reproducible and Operable System.
+% Build: python thesis/build.py  (tables from thesis/make_tables.py; PDF via
+% tectonic; DOCX via pandoc). No number in this document is typed by hand.
+% ---------------------------------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{amsmath,amssymb}
+\usepackage{textcomp}
+\usepackage[hyphens]{url}
+\usepackage{microtype}
+\usepackage{setspace}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage[hidelinks]{hyperref}
+\graphicspath{{figures/}{../reports/figures/}}
+\def\UrlBreaks{\do\/\do-\do.}
+\onehalfspacing
+\setlength{\parskip}{4pt}
+\captionsetup{font=small,labelfont=bf}
+\titleformat{\chapter}[display]{\normalfont\huge\bfseries}{\chaptertitlename\ \thechapter}{12pt}{\Huge}
+\titlespacing*{\chapter}{0pt}{0pt}{30pt}
+\setlist{itemsep=2pt,topsep=3pt}
+\renewcommand{\bibname}{References}
+
+\IfFileExists{title.tex}{\input{title}}{\newcommand{\ThesisTitle}{Leakage-Free Benchmarking of Classical and Neural Sentiment Classifiers: From a Thesis Notebook to a Reproducible, Operable System}}
+
+\begin{document}
+
+% ----------------------------------------------------------------- title page
+\begin{titlepage}
+\singlespacing
+\centering
+\vspace*{1cm}
+{\large Nanjing University of Information Science and Technology\par}
+{\large College of International Students\par}
+{\normalsize Computer Science and Technology\par}
+\vspace{2cm}
+{\Huge\bfseries \ThesisTitle\par}
+\vspace{1.2cm}
+{\large Thesis\par}
+\vspace{0.4cm}
+{\normalsize Extended and re-implemented edition (2026) of the undergraduate thesis\\\emph{Research on Machine Learning Classification Algorithms: A Comprehensive Theoretical Survey of Sentiment Analysis and Deep Learning Approaches} (May 2022)\par}
+\vspace{1.5cm}
+{\large\bfseries Rakibul Hasan Sium\par}
+{\normalsize sium@nuist.edu.cn\par}
+\vspace{0.8cm}
+{\normalsize Supervisor of the original thesis: Prof. Zheng Yu\par}
+\vspace{1.5cm}
+{\normalsize Code, configuration, model cards and figures:\\\url{https://github.com/rhs2/sentiment-ml-benchmark}\par}
+\vfill
+{\normalsize Nanjing, 2026\par}
+\end{titlepage}
+
+% --------------------------------------------------------------- front matter
+\pagenumbering{roman}
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+\input{chapters/00_abstract}
+
+\chapter*{Acknowledgements}
+\addcontentsline{toc}{chapter}{Acknowledgements}
+I thank Prof. Zheng Yu, who supervised the 2022 thesis from which this work grew, for the freedom to pursue an evaluation-centred question, and the College of International Students of Nanjing University of Information Science and Technology for the education that made it possible. The datasets used here were collected and released by others, as credited in Chapter~\ref{ch:data}; the study would not exist without their work. All code, results and mistakes in this document are my own.
+
+\tableofcontents
+\listoffigures
+\listoftables
+\clearpage
+\pagenumbering{arabic}
+
+% ------------------------------------------------------------------ chapters
+\chapter{Introduction}\label{ch:intro}
+\input{chapters/01_introduction}
+
+\chapter{Background and Related Work}\label{ch:background}
+\input{chapters/02_background}
+
+\chapter{Corpora}\label{ch:data}
+\input{chapters/03_data}
+
+\chapter{Methodology}\label{ch:method}
+\input{chapters/04_methodology}
+
+\chapter{System Design and Implementation}\label{ch:system}
+\input{chapters/05_system}
+
+\chapter{Experiments and Results}\label{ch:results}
+\input{chapters/06_results}
+
+\chapter{Discussion}\label{ch:discussion}
+\input{chapters/07_discussion}
+
+\chapter{Conclusion and Future Work}\label{ch:future}
+\input{chapters/08_future}
+
+% ---------------------------------------------------------------- appendices
+\appendix
+\chapter{Full Benchmark Results}\label{app:full}
+\input{tables/full}
+
+\chapter{Reproduction}\label{app:repro}
+\input{chapters/A2_reproduction}
+
+\chapter{Model Card of a Selected Model}\label{app:card}
+\input{chapters/A3_modelcard}
+
+% --------------------------------------------------------------- references
+\input{chapters/99_references}
+
+\end{document}

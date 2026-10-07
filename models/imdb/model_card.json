@@ -1,0 +1,72 @@
+{
+  "dataset": "imdb",
+  "task": "binary",
+  "label_names": [
+    "negative",
+    "positive"
+  ],
+  "model": "linear_svm",
+  "features": "tfidf",
+  "threshold": 0.49999999999999994,
+  "selection": "highest cross-validated F1 on the training split",
+  "metrics": {
+    "cv_f1_mean": 0.8927800243414079,
+    "cv_f1_std": 0.0018855174567790484,
+    "test_accuracy": 0.88176,
+    "test_precision": 0.8698078115313082,
+    "test_recall": 0.89792,
+    "test_f1": 0.8836403715950244,
+    "test_f1_at_0.5": 0.8836403715950244,
+    "test_roc_auc": 0.9531125568000001,
+    "test_pr_auc": 0.9517150639279444,
+    "cv_seconds": 0.6
+  },
+  "per_class": [
+    {
+      "class": "negative",
+      "support": 12500,
+      "precision": 0.894510582010582,
+      "recall": 0.8656,
+      "f1": 0.8798178565620426
+    },
+    {
+      "class": "positive",
+      "support": 12500,
+      "precision": 0.8698078115313082,
+      "recall": 0.89792,
+      "f1": 0.8836403715950244
+    }
+  ],
+  "feature_params": {
+    "type": "tfidf",
+    "max_df": 0.9,
+    "min_df": 3,
+    "max_features": 20000,
+    "ngram_range": [
+      1,
+      2
+    ],
+    "sublinear_tf": true
+  },
+  "model_params": {
+    "type": "linear_svm",
+    "C": 0.5
+  },
+  "clean": {
+    "lowercase": true,
+    "remove_urls": true,
+    "remove_mentions": true,
+    "keep_hashtags": false,
+    "remove_stopwords": true,
+    "min_word_len": 2,
+    "stemmer": "porter"
+  },
+  "training_rows": 25000,
+  "data_fingerprint": "1632b79c14e6c2a4",
+  "config": "configs/imdb.yaml",
+  "git_commit": "bddf175",
+  "package_version": "1.0.0",
+  "python": "3.12.10",
+  "tracking_backend": "mlflow (sqlite:////Users/sium/Desktop/Lykios/resume/pipeline/sentiment-ml-benchmark/reports/mlflow.db)",
+  "created": "2026-08-22T12:46:24.991880+00:00"
+}

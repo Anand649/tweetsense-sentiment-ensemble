@@ -1,0 +1,1401 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.10.2" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="author" content="Rakibul Hasan Sium, Nanjing University of Information Science and Technology (sium@nuist.edu.cn)" />
+  <title>Ranking Is Not the Problem: Leakage-Free Benchmarking of Sentiment Classifiers on Twitter and IMDB</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+  </style>
+  <link rel="stylesheet" href="style.css" />
+  <script defer=""
+  src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js"
+  type="text/javascript"></script>
+</head>
+<body>
+<nav class="sitenav"><a href="index.html">Project page</a> <a href="paper.html">Paper</a> <a href="thesis.html">Thesis</a> <a href="https://github.com/rhs2/sentiment-ml-benchmark">Code</a></nav>
+
+<header id="title-block-header">
+<h1 class="title">Ranking Is Not the Problem: Leakage-Free Benchmarking
+of Sentiment Classifiers on Twitter and IMDB</h1>
+<p class="author">Rakibul Hasan Sium, Nanjing University of Information
+Science and Technology (sium@nuist.edu.cn)</p>
+<div class="abstract">
+<div class="abstract-title">Abstract</div>
+<p>Comparisons of sentiment classifiers on social-media text often
+differ in evaluation practice more than in modelling: vectorizers fitted
+on test data, a fixed decision threshold, or accuracy reported on
+heavily imbalanced classes can move a result by more than the difference
+between methods. We present a benchmark of eight model families
+(multinomial naive Bayes, logistic regression, a calibrated linear
+support vector machine, random forest, gradient-boosted trees, a
+soft-voting ensemble, a convolutional network and a bidirectional LSTM)
+across five input representations (count and TF-IDF <span
+class="math inline">\(n\)</span>-grams, mean-pooled Word2Vec, Doc2Vec
+and token sequences) on three corpora: racist and sexist tweet detection
+(31,962 tweets, 7 percent positive), COVID-19 vaccine tweets with
+lexicon-derived labels (10,353 tweets, three classes) and the IMDB
+movie-review corpus (50,000 reviews). Every cell of the 56-cell grid
+follows one protocol: stratified cross-validation on the training split
+yields out-of-fold probabilities, from which the decision threshold and
+the model are selected; the test split is scored once. On the
+hate-speech task all families reach ROC-AUC between 0.939 and 0.952,
+while F1 on the positive class ranges from 0.608 to 0.684 depending on
+calibration and threshold transfer, not on ranking ability; tuning the
+threshold on out-of-fold predictions adds up to 0.09 F1 for the
+classical models and 0.14 for the networks over the default of 0.5. On
+the vaccine task the CNN reaches macro F1 0.812 against 0.775 for the
+best classical model, and on IMDB the linear <span
+class="math inline">\(n\)</span>-gram models (F1 0.884 to 0.888,
+accuracy 0.882 to 0.885) form the ceiling of the grid, matching
+published results for models without pretrained language
+representations. Learned document embeddings are the weakest
+representation on every task. The benchmark is released as a maintained
+system with experiment tracking, model cards, a prediction service
+backed by PostgreSQL, population-stability drift monitoring and
+infrastructure definitions for cloud deployment, so that the reported
+numbers can be regenerated with one command and the selected models
+operated after publication.</p>
+</div>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#introduction" id="toc-introduction">Introduction</a></li>
+<li><a href="#related-work" id="toc-related-work">Related Work</a></li>
+<li><a href="#sec:data" id="toc-sec:data">Datasets</a></li>
+<li><a href="#sec:method" id="toc-sec:method">Methodology</a>
+<ul>
+<li><a href="#text-normalisation" id="toc-text-normalisation">Text
+normalisation</a></li>
+<li><a href="#representations"
+id="toc-representations">Representations</a></li>
+<li><a href="#models" id="toc-models">Models</a></li>
+<li><a href="#sec:protocol" id="toc-sec:protocol">Evaluation
+protocol</a></li>
+<li><a href="#system" id="toc-system">System</a></li>
+</ul></li>
+<li><a href="#experimental-setup"
+id="toc-experimental-setup">Experimental Setup</a></li>
+<li><a href="#sec:results" id="toc-sec:results">Results</a>
+<ul>
+<li><a href="#ranking-ability-versus-thresholding"
+id="toc-ranking-ability-versus-thresholding">Ranking ability versus
+thresholding</a></li>
+<li><a href="#representations-1"
+id="toc-representations-1">Representations</a></li>
+<li><a href="#vaccine-corpus" id="toc-vaccine-corpus">Vaccine
+corpus</a></li>
+<li><a href="#imdb" id="toc-imdb">IMDB</a></li>
+<li><a href="#cost" id="toc-cost">Cost</a></li>
+<li><a href="#comparison-with-the-original-study"
+id="toc-comparison-with-the-original-study">Comparison with the original
+study</a></li>
+</ul></li>
+<li><a href="#threats-to-validity" id="toc-threats-to-validity">Threats
+to Validity</a></li>
+<li><a href="#conclusion" id="toc-conclusion">Conclusion</a></li>
+<li><a href="#references" id="toc-references">References</a></li>
+</ul>
+</nav>
+<p><strong>Index Terms:</strong> Sentiment analysis, hate speech
+detection, text classification, evaluation methodology, calibration,
+threshold selection, reproducibility, MLOps.</p>
+<h1 id="introduction">Introduction</h1>
+<p>Sentiment classification of short social-media text is one of the
+most frequently reported tasks in applied natural language processing,
+and comparisons of classical learners with neural networks on Twitter
+data are abundant [1, 2]. Such comparisons are, however, sensitive to
+evaluation choices that are rarely controlled. Fitting a vocabulary or
+an embedding model on the union of training and test data leaks test
+information into the features [17]; selecting a model on the same split
+that is reported overstates its score [18]; reporting accuracy on a task
+with 7 percent positives rewards the majority class; and evaluating
+probabilistic classifiers at a fixed decision threshold conflates the
+quality of the ranking they produce with the calibration of their scores
+[19, 22]. Each of these effects can exceed the differences between
+methods that papers then rank.</p>
+<p>This article grew out of the author’s undergraduate thesis, which
+compared naive Bayes, logistic regression, a support vector machine, a
+random forest and gradient-boosted trees on two Twitter corpora in
+notebook form, with exactly the shortcomings listed above. We
+re-implement that study as a benchmark in which the evaluation protocol
+is fixed once and applied to every combination of dataset,
+representation and model, extend it with the neural models that the
+thesis proposed as future work and with a third, balanced corpus of long
+documents, and ship it as a maintained system rather than as a set of
+scripts. The contributions are:</p>
+<ol>
+<li><p>A 56-cell benchmark (three corpora, five representations, eight
+model families) under one leakage-free protocol: features fitted per
+cross-validation fold, decision thresholds chosen on out-of-fold
+predictions, model selection by cross-validated F1, and a single scoring
+pass on a held-out split (Section 4).</p></li>
+<li><p>An analysis that separates ranking ability from thresholding and
+calibration. On the imbalanced hate-speech task all eight families are
+within 0.013 ROC-AUC of each other, yet their positive-class F1 spans
+0.076, and the family with the best cross-validated F1 transfers its
+threshold worst (Section 6).</p></li>
+<li><p>Evidence across the three corpora that sparse <span
+class="math inline">\(n\)</span>-gram features remain the strongest
+representation for classical learners on short text, that learned
+document embeddings are the weakest representation on every task, and
+that on balanced long documents linear models on TF-IDF match networks
+trained from scratch at a fraction of the cost.</p></li>
+<li><p>A reference implementation in which every number in this paper is
+regenerated from the saved out-of-fold and test probabilities, each run
+is tracked, the selected model is exported with a model card [28] and a
+monitoring baseline, and a prediction service with database-backed drift
+detection turns the benchmark into an operable system [27].</p></li>
+</ol>
+<h1 id="related-work">Related Work</h1>
+<p>Sentiment analysis and opinion mining are surveyed by Pang and Lee
+[1] and Liu [2]. For Twitter specifically, Go et al. [3] introduced
+distant supervision with emoticons as noisy labels, a precursor of the
+lexicon-derived labels used in our vaccine corpus, and Waseem and Hovy
+[4] and Davidson et al. [5] established racist and sexist tweet
+detection as a task with strong class imbalance, in which F1 on the
+minority class is the metric of interest. Classical text classifiers
+remain competitive baselines: multinomial naive Bayes [6], linear
+support vector machines [7], random forests [8] and gradient boosting
+[9]. Wang and Manning [10] showed that linear models over bigram
+features are hard to beat on sentiment corpora such as IMDB [11], which
+is consistent with our IMDB results. Distributed representations for
+text, Word2Vec [12] and Doc2Vec [13], and the two neural architectures
+we include, the text CNN of Kim [14] and the LSTM [15], are standard.
+Pretrained transformers [16] set the current ceiling on these corpora;
+we deliberately restrict the grid to models that train from scratch on a
+CPU and quantify the remaining gap.</p>
+<p>On methodology, Kaufman et al. [17] catalogue leakage, Cawley and
+Talbot [18] show how model selection on the evaluation data biases
+reported scores, Lipton et al. [19] prove that the F1-optimal threshold
+depends on the classifier and the class prior, and Platt [20],
+Niculescu-Mizil and Caruana [21] and Guo et al. [22] study the
+calibration of margin-based and neural classifiers; Davis and Goadrich
+[23] motivate precision-recall analysis under imbalance. On the systems
+side, Sculley et al. [27] describe the operational debt of machine
+learning, Mitchell et al. [28] propose model cards, and MLflow [29]
+provides experiment tracking; population stability indices for drift
+originate in credit scoring [30].</p>
+<h1 id="sec:data">Datasets</h1>
+<p>Table 1 summarises the corpora. The first two are the thesis
+experiments; the third is an addition chosen to contrast short,
+imbalanced social-media text with long, balanced reviews.</p>
+<table id="tab:data">
+<caption>Table 1. Corpora. Splits are stratified 80/20 holdouts with a
+fixed seed for the Twitter corpora and the official split for
+IMDB.</caption>
+<thead>
+<tr>
+<th style="text-align: left;">Corpus</th>
+<th style="text-align: right;">Docs</th>
+<th style="text-align: left;">Classes</th>
+<th style="text-align: left;">Labels</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Hate (Twitter)</td>
+<td style="text-align: right;">31,962</td>
+<td style="text-align: left;">2; 7.0 % positive</td>
+<td style="text-align: left;">human (competition)</td>
+</tr>
+<tr>
+<td style="text-align: left;">Vaccine (Twitter)</td>
+<td style="text-align: right;">10,353</td>
+<td style="text-align: left;">3; 9.9 / 56.6 / 33.5 %</td>
+<td style="text-align: left;">lexicon polarity</td>
+</tr>
+<tr>
+<td style="text-align: left;">IMDB</td>
+<td style="text-align: right;">50,000</td>
+<td style="text-align: left;">2; balanced</td>
+<td style="text-align: left;">human (ratings)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Hate.</strong> The Analytics Vidhya Twitter sentiment
+practice set: 31,962 tweets labelled 1 when racist or sexist, 0
+otherwise (2,242 positives). Handles are anonymised as
+<code>@user</code> in the source; the competition’s unlabelled test file
+is not used. We split stratified 80/20 (seed 42), giving 25,569 training
+and 6,393 test tweets.</p>
+<p><strong>Vaccine.</strong> Pfizer and BioNTech COVID-19 vaccine tweets
+from Kaggle (11,020 rows). As in the thesis, no human labels exist:
+after light cleaning and de-duplication (10,353 unique tweets), each
+tweet is labelled by the sign of its TextBlob [26] polarity as negative,
+neutral or positive. Scores on this corpus therefore measure agreement
+with a lexicon labeller rather than with human judgement; we keep it
+because it is half of the original study and because it exposes how
+representations interact with lexicon-defined targets.</p>
+<p><strong>IMDB.</strong> The Large Movie Review Dataset of Maas et al.
+[11]: 25,000 training and 25,000 test reviews, balanced, with negative
+defined as a rating of at most 4 and positive as at least 7. We use the
+official split.</p>
+<p>No corpus is redistributed with the code. Download locations are read
+from the environment, and a manifest records the SHA-256 hash, row count
+and class balance of the files used for a run, together with a content
+fingerprint of the loaded frame that is written into every model
+card.</p>
+<h1 id="sec:method">Methodology</h1>
+<h2 id="text-normalisation">Text normalisation</h2>
+<p>One transformer implements the thesis recipe and is the first step of
+every exported pipeline, so training, evaluation and serving apply
+identical cleaning: HTML unescape and tag removal, lower-casing, removal
+of URLs and @-handles, retention of letters only (hashtags optionally
+kept as tokens), a minimum token length, the scikit-learn English
+stop-word list, and Porter stemming. The hate corpus keeps hashtags and
+drops tokens shorter than three characters; the vaccine and IMDB corpora
+drop the hash symbol and keep two-character tokens.</p>
+<h2 id="representations">Representations</h2>
+<p>Five representations are evaluated. <em>Counts</em> and
+<em>TF-IDF</em> use unigrams and bigrams with document-frequency bounds
+(minimum 2, maximum 90 percent), a 5,000-term vocabulary for tweets and
+20,000 terms for reviews, and sublinear term frequency for TF-IDF.
+<em>Word2Vec</em> [12] is a skip-gram model (200 dimensions, window 5,
+10 negative samples, 20 epochs on tweets and 8 on reviews) trained on
+the training fold only, with the document vector as the mean of its
+token vectors. <em>Doc2Vec</em> [13] is a distributed-memory model (200
+dimensions, 15 epochs) in which both training and test documents are
+embedded by inference, so that the two are represented the same way.
+<em>Sequence</em> denotes padded token identifiers (vocabulary of at
+most 20,000 tokens for tweets, 30,000 for reviews; 48 tokens for tweets,
+200 for the CNN and 160 for the BiLSTM on reviews) consumed by the
+neural models, whose embedding layer is initialised from a Word2Vec
+model trained on the same fold.</p>
+<h2 id="models">Models</h2>
+<p>Classical models use scikit-learn [24] and XGBoost [9]: multinomial
+naive Bayes (additive smoothing 0.5, count-based features only),
+logistic regression (L2, <span class="math inline">\(C{=}1\)</span> on
+tweets and 2 on reviews, balanced class weights on the Twitter corpora),
+a linear SVM wrapped in sigmoid calibration with three internal folds
+[20] so that it exposes probabilities, a random forest (400 trees,
+balanced subsample weights; 300 trees on IMDB), gradient-boosted trees
+(histogram method, depth 6, 500 rounds at learning rate 0.05 on tweets;
+400 rounds at 0.1 on reviews, subsample 0.9, column subsample 0.5), and
+a soft-voting ensemble of the logistic regression, the calibrated SVM
+and XGBoost with equal weights. The thesis’ boosted-tree parameters
+(depth 8, minimum child weight 6, <span
+class="math inline">\(\gamma{=}1.2\)</span>) were tuned on Word2Vec
+features and under-fit sparse <span
+class="math inline">\(n\)</span>-gram matrices; they are retained in the
+configuration for reference but not used.</p>
+<p>The neural models are implemented in PyTorch [25] and wrapped as
+scikit-learn estimators so that they pass through the same
+cross-validation, threshold selection, tracking and export as the
+classical models. The CNN follows Kim [14]: 128-dimensional embeddings,
+kernel widths 3, 4 and 5 with 128 filters each, global max pooling,
+dropout 0.5. The BiLSTM [15] has 128 hidden units per direction (64 on
+reviews) with concatenated max and mean pooling over time. Both train
+with Adam (learning rate <span class="math inline">\(10^{-3}\)</span>),
+batch size 64, a class-weighted cross-entropy on the imbalanced corpora,
+and early stopping on a 10 percent validation slice of the training fold
+(at most eight epochs on tweets, four and three on reviews).</p>
+<h2 id="sec:protocol">Evaluation protocol</h2>
+<p>The same procedure is applied to every (corpus, representation,
+model) cell:</p>
+<ol>
+<li><p>The training split is cleaned once. Each representation is fitted
+once per cross-validation fold on that fold’s training part and once on
+the whole training split; the resulting matrices are cached and shared
+by all models evaluated on that representation, so that models are
+compared on identical inputs and no representation ever sees validation
+or test documents during fitting.</p></li>
+<li><p>Stratified <span class="math inline">\(k\)</span>-fold
+cross-validation (<span class="math inline">\(k{=}5\)</span> on tweets,
+<span class="math inline">\(3\)</span> on reviews) produces out-of-fold
+class probabilities for every training document.</p></li>
+<li><p>For binary tasks, the decision threshold on <span
+class="math inline">\(P(\text{positive})\)</span> is the value in <span
+class="math inline">\([0.05, 0.95]\)</span> that maximises F1 on the
+out-of-fold probabilities [19]. The three-class task uses the
+arg-max.</p></li>
+<li><p>The selected cell per corpus is the one with the highest
+cross-validated F1 at that threshold; the test split plays no part in
+selection [18].</p></li>
+<li><p>The model is refitted on the whole training split and scored once
+on the test split at the selected threshold: accuracy, precision,
+recall, F1 (positive class, or macro average), ROC-AUC, average
+precision, a per-class report and a confusion matrix. F1 at the default
+threshold of 0.5 is recorded alongside.</p></li>
+<li><p>Out-of-fold and test probabilities are saved, so that every
+figure and table is regenerated from disk without retraining.</p></li>
+</ol>
+<p>F1 on the positive class is the primary metric on the hate corpus
+because accuracy is dominated by the 93 percent majority class; macro F1
+is used on the three-class corpus; both F1 and accuracy are reported on
+the balanced IMDB corpus.</p>
+<h2 id="system">System</h2>
+<p>Fig. 1 shows the implementation. One YAML file defines a benchmark
+(datasets, cleaning, representations, models, grid, folds, seed) and is
+logged with every run; each cell is an MLflow [29] run with parameters,
+cross-validated and test metrics, the threshold, timings and the
+confusion matrix, and the selected pipeline per corpus is exported as
+one serialised object (cleaner, representation, model) together with a
+model card [28] (data fingerprint, selection rule, metrics, per-class
+scores, software versions, commit) and a monitoring baseline. A Flask
+service exposes prediction, health and statistics endpoints over the
+exported pipelines and writes every prediction to a PostgreSQL store; a
+monitor compares recent traffic with the training baseline using the
+population stability index [30] of the token-length and predicted-class
+distributions, the out-of-vocabulary rate against the training
+vocabulary, and the share of inputs that become empty after cleaning,
+with warning and alert levels and a stored history. Continuous
+integration runs the unit tests against PostgreSQL, a one-minute version
+of the benchmark on a synthetic corpus, and a container build on every
+change; infrastructure definitions provision a container service, a
+managed database, object storage for artifacts and a scheduled drift
+task on a public cloud. No credential or dataset location appears in the
+code.</p>
+<figure id="fig:arch" data-latex-placement="t">
+<img src="figures/architecture.png" />
+<figcaption>Fig. 1. From configuration to operation: the benchmark
+(top), tracking and export (middle), and the prediction service with
+database-backed drift monitoring (bottom).</figcaption>
+</figure>
+<h1 id="experimental-setup">Experimental Setup</h1>
+<p>All results were produced on a laptop CPU (eight cores, no GPU) with
+pinned package versions (scikit-learn 1.5, XGBoost 2.0, Gensim 4.4,
+PyTorch 2.13). Seeds are fixed for the split, the folds, Gensim and
+PyTorch; Gensim’s multithreaded training introduces run-to-run variation
+of the order of <span class="math inline">\(10^{-3}\)</span> in F1 for
+the embedding-based cells. The Twitter grid comprises 22 cells per
+corpus (naive Bayes on count-based features only, the ensemble on TF-IDF
+and Word2Vec, the networks on sequences); the IMDB grid is reduced to 12
+cells for cost (no Doc2Vec, the random forest and SVM on TF-IDF only,
+shorter network schedules). The whole study runs in about two hours.</p>
+<h1 id="sec:results">Results</h1>
+<p>Table 2 lists the selected model per corpus, Table 3 every family at
+its best representation, and Table 6 every representation at its best
+model. Figures 2 to 5 are drawn from the saved probabilities of the hate
+corpus, the task on which evaluation choices matter most.</p>
+<table id="tab:selected">
+<caption>Table 2. Model selected per dataset by cross-validated F1,
+scored once on the held-out test split. F1 is on the positive class for
+the binary tasks and macro-averaged for the three-class task; ROC-AUC
+for the three-class task is one-versus-rest, macro-averaged. Thresholds
+are chosen on out-of-fold predictions (argmax for the three-class
+task).</caption>
+<thead>
+<tr>
+<th style="text-align: left;">Dataset</th>
+<th style="text-align: left;">Task</th>
+<th style="text-align: right;">Train</th>
+<th style="text-align: right;">Test</th>
+<th style="text-align: left;">Model / features</th>
+<th style="text-align: center;">CV F1</th>
+<th style="text-align: center;">Test F1</th>
+<th style="text-align: center;">Acc.</th>
+<th style="text-align: center;">Prec.</th>
+<th style="text-align: center;">Rec.</th>
+<th style="text-align: center;">ROC-AUC</th>
+<th style="text-align: center;">Thr.</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Hate</td>
+<td style="text-align: left;">binary</td>
+<td style="text-align: right;">25569</td>
+<td style="text-align: right;">6393</td>
+<td style="text-align: left;">CNN / sequence</td>
+<td style="text-align: center;">0.672 ± 0.022</td>
+<td style="text-align: center;"><strong>0.608</strong></td>
+<td style="text-align: center;">0.955</td>
+<td style="text-align: center;">0.782</td>
+<td style="text-align: center;">0.498</td>
+<td style="text-align: center;">0.948</td>
+<td style="text-align: center;">0.90</td>
+</tr>
+<tr>
+<td style="text-align: left;">Vaccine</td>
+<td style="text-align: left;">multiclass</td>
+<td style="text-align: right;">8282</td>
+<td style="text-align: right;">2071</td>
+<td style="text-align: left;">CNN / sequence</td>
+<td style="text-align: center;">0.799 ± 0.012</td>
+<td style="text-align: center;"><strong>0.812</strong></td>
+<td style="text-align: center;">0.859</td>
+<td style="text-align: center;">0.798</td>
+<td style="text-align: center;">0.830</td>
+<td style="text-align: center;">0.948</td>
+<td style="text-align: center;">argmax</td>
+</tr>
+<tr>
+<td style="text-align: left;">IMDB</td>
+<td style="text-align: left;">binary</td>
+<td style="text-align: right;">25000</td>
+<td style="text-align: right;">25000</td>
+<td style="text-align: left;">Linear SVM (calib.) / TF-IDF</td>
+<td style="text-align: center;">0.893 ± 0.002</td>
+<td style="text-align: center;"><strong>0.884</strong></td>
+<td style="text-align: center;">0.882</td>
+<td style="text-align: center;">0.870</td>
+<td style="text-align: center;">0.898</td>
+<td style="text-align: center;">0.953</td>
+<td style="text-align: center;">0.50</td>
+</tr>
+</tbody>
+</table>
+<table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<thead>
+<tr>
+<th style="text-align: left;">Model</th>
+<th style="text-align: left;">Hate</th>
+<th style="text-align: left;">Vaccine</th>
+<th style="text-align: left;">IMDB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Naive Bayes</td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.658 (TF-IDF)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.650 ± 0.017</td>
+</tr>
+</tbody>
+</table></td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.698 (counts)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.681 ± 0.011</td>
+</tr>
+</tbody>
+</table></td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.851 (TF-IDF)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.868 ± 0.002</td>
+</tr>
+</tbody>
+</table></td>
+</tr>
+<tr>
+<td style="text-align: left;">Logistic regression</td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.654 (TF-IDF)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.652 ± 0.009</td>
+</tr>
+</tbody>
+</table></td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.775 (counts)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.769 ± 0.014</td>
+</tr>
+</tbody>
+</table></td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.886 (TF-IDF)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.892 ± 0.002</td>
+</tr>
+</tbody>
+</table></td>
+</tr>
+<tr>
+<td style="text-align: left;">Linear SVM (calib.)</td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.654 (TF-IDF)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.654 ± 0.012</td>
+</tr>
+</tbody>
+</table></td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.744 (counts)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.739 ± 0.013</td>
+</tr>
+</tbody>
+</table></td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.884 (TF-IDF)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.893 ± 0.002</td>
+</tr>
+</tbody>
+</table></td>
+</tr>
+<tr>
+<td style="text-align: left;">Random forest</td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.680 (TF-IDF)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.669 ± 0.021</td>
+</tr>
+</tbody>
+</table></td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.709 (counts)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.717 ± 0.013</td>
+</tr>
+</tbody>
+</table></td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.859 (TF-IDF)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.859 ± 0.002</td>
+</tr>
+</tbody>
+</table></td>
+</tr>
+<tr>
+<td style="text-align: left;">XGBoost</td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>0.684</strong> (Word2Vec)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.664 ± 0.020</td>
+</tr>
+</tbody>
+</table></td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.757 (counts)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.745 ± 0.023</td>
+</tr>
+</tbody>
+</table></td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.865 (TF-IDF)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.862 ± 0.003</td>
+</tr>
+</tbody>
+</table></td>
+</tr>
+<tr>
+<td style="text-align: left;">Soft-voting ensemble</td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.662 (TF-IDF)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.659 ± 0.013</td>
+</tr>
+</tbody>
+</table></td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.757 (TF-IDF)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.754 ± 0.014</td>
+</tr>
+</tbody>
+</table></td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>0.888</strong> (TF-IDF)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.891 ± 0.002</td>
+</tr>
+</tbody>
+</table></td>
+</tr>
+<tr>
+<td style="text-align: left;">CNN</td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.608 (sequence)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.672 ± 0.022</td>
+</tr>
+</tbody>
+</table></td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>0.812</strong> (sequence)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.799 ± 0.012</td>
+</tr>
+</tbody>
+</table></td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.875 (sequence)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.872 ± 0.003</td>
+</tr>
+</tbody>
+</table></td>
+</tr>
+<tr>
+<td style="text-align: left;">BiLSTM</td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.658 (sequence)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.670 ± 0.018</td>
+</tr>
+</tbody>
+</table></td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.779 (sequence)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.731 ± 0.029</td>
+</tr>
+</tbody>
+</table></td>
+<td style="text-align: left;"><table id="tab:families">
+<caption>Table 3. Every model family at its best feature set per dataset
+(feature set chosen by cross-validated F1). Cells give test F1 with the
+cross-validated mean ± standard deviation across folds underneath. The
+best test F1 per column is in bold.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">0.876 (sequence)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CV 0.879 ± 0.000</td>
+</tr>
+</tbody>
+</table></td>
+</tr>
+</tbody>
+</table>
+<h2 id="ranking-ability-versus-thresholding">Ranking ability versus
+thresholding</h2>
+<p>On the hate corpus every family reaches a test ROC-AUC between 0.939
+(calibrated SVM) and 0.952 (XGBoost on Word2Vec), and average precision
+between 0.695 and 0.762 (Fig. 2); the eight families order the test
+tweets almost equally well. Their F1 on the positive class, however,
+spans 0.608 to 0.684, and the spread is explained by calibration and
+threshold transfer rather than by ranking. Fig. 3 shows that the
+class-weighted networks are strongly over-confident (mean predicted
+probability 0.87 in the top decile against an observed positive rate of
+0.51), whereas the calibrated SVM, the forest, the boosted trees and the
+ensemble lie close to the diagonal; accordingly the networks’ F1-optimal
+thresholds are 0.85 and 0.90 (Fig. 4) while the classical models’ lie
+between 0.23 and 0.69.</p>
+<figure id="fig:roc" data-latex-placement="t">
+<img src="figures/roc_twitter_hate.png" />
+<figcaption>Fig. 2. Hate corpus: ROC curves of the best representation
+per model family on the test split.</figcaption>
+</figure>
+<figure id="fig:calib" data-latex-placement="t">
+<img src="figures/calibration_twitter_hate.png" />
+<figcaption>Fig. 3. Hate corpus: reliability diagram (quantile bins) of
+the five families with the highest cross-validated F1. The networks are
+over-confident; the tree and linear models are close to
+calibrated.</figcaption>
+</figure>
+<figure id="fig:thr" data-latex-placement="t">
+<img src="figures/threshold_twitter_hate.png" />
+<figcaption>Fig. 4. Hate corpus: F1, precision and recall of the CNN as
+a function of the decision threshold on out-of-fold predictions. The F1
+optimum lies at 0.90; the default of 0.5 gives recall 0.84 at precision
+0.41.</figcaption>
+</figure>
+<table id="tab:threshold">
+<caption>Table 4. Effect of the decision threshold on the hate-speech
+task (best feature set per model). F1 at the threshold tuned on
+out-of-fold predictions versus F1 at 0.5 on the same test split; the
+last column is the gap between the cross-validated F1 and the test F1 at
+the tuned threshold (threshold transfer).</caption>
+<thead>
+<tr>
+<th style="text-align: left;">Model</th>
+<th style="text-align: left;">Feat.</th>
+<th style="text-align: center;">Thr.</th>
+<th style="text-align: center;">F1 tuned</th>
+<th style="text-align: center;">F1 at 0.5</th>
+<th style="text-align: center;">Gain</th>
+<th style="text-align: center;">CV minus test</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">CNN</td>
+<td style="text-align: left;">sequence</td>
+<td style="text-align: center;">0.90</td>
+<td style="text-align: center;">0.608</td>
+<td style="text-align: center;">0.515</td>
+<td style="text-align: center;">+0.093</td>
+<td style="text-align: center;">+0.064</td>
+</tr>
+<tr>
+<td style="text-align: left;">BiLSTM</td>
+<td style="text-align: left;">sequence</td>
+<td style="text-align: center;">0.85</td>
+<td style="text-align: center;">0.658</td>
+<td style="text-align: center;">0.514</td>
+<td style="text-align: center;">+0.144</td>
+<td style="text-align: center;">+0.013</td>
+</tr>
+<tr>
+<td style="text-align: left;">RF</td>
+<td style="text-align: left;">TF-IDF</td>
+<td style="text-align: center;">0.40</td>
+<td style="text-align: center;">0.680</td>
+<td style="text-align: center;">0.685</td>
+<td style="text-align: center;">-0.005</td>
+<td style="text-align: center;">-0.010</td>
+</tr>
+<tr>
+<td style="text-align: left;">XGB</td>
+<td style="text-align: left;">Word2Vec</td>
+<td style="text-align: center;">0.23</td>
+<td style="text-align: center;">0.684</td>
+<td style="text-align: center;">0.661</td>
+<td style="text-align: center;">+0.023</td>
+<td style="text-align: center;">-0.020</td>
+</tr>
+<tr>
+<td style="text-align: left;">Ens.</td>
+<td style="text-align: left;">TF-IDF</td>
+<td style="text-align: center;">0.38</td>
+<td style="text-align: center;">0.662</td>
+<td style="text-align: center;">0.654</td>
+<td style="text-align: center;">+0.008</td>
+<td style="text-align: center;">-0.002</td>
+</tr>
+<tr>
+<td style="text-align: left;">SVM</td>
+<td style="text-align: left;">TF-IDF</td>
+<td style="text-align: center;">0.32</td>
+<td style="text-align: center;">0.654</td>
+<td style="text-align: center;">0.615</td>
+<td style="text-align: center;">+0.039</td>
+<td style="text-align: center;">-0.001</td>
+</tr>
+<tr>
+<td style="text-align: left;">LR</td>
+<td style="text-align: left;">TF-IDF</td>
+<td style="text-align: center;">0.69</td>
+<td style="text-align: center;">0.654</td>
+<td style="text-align: center;">0.586</td>
+<td style="text-align: center;">+0.068</td>
+<td style="text-align: center;">-0.002</td>
+</tr>
+<tr>
+<td style="text-align: left;">NB</td>
+<td style="text-align: left;">TF-IDF</td>
+<td style="text-align: center;">0.24</td>
+<td style="text-align: center;">0.658</td>
+<td style="text-align: center;">0.571</td>
+<td style="text-align: center;">+0.087</td>
+<td style="text-align: center;">-0.008</td>
+</tr>
+</tbody>
+</table>
+<p>Table 4 quantifies both effects. Tuning the threshold on out-of-fold
+predictions improves test F1 over the default of 0.5 for seven of the
+eight families, by 0.008 to 0.087 for the classical models (logistic
+regression on TF-IDF: 0.586 to 0.654) and by 0.09 to 0.14 for the
+networks; the random forest, whose optimum lies at 0.40, loses 0.005; a
+fixed threshold of 0.3, as used in the original notebooks, would have
+been near-optimal for naive Bayes and XGBoost and far from it for
+logistic regression and the networks. The last column shows threshold
+transfer: the threshold is chosen on probabilities of models trained on
+four fifths of the data and applied to a model refitted on all of it.
+For the calibrated SVM, logistic regression, the forest, the ensemble
+and XGBoost the transferred threshold reproduces the cross-validated F1
+within 0.02; for the CNN it costs 0.064 (cross-validated 0.672, test
+0.608) and for the BiLSTM 0.012, because early stopping ends the
+refitted network at a different epoch and its over-confident score scale
+shifts accordingly. The CNN is nevertheless the model selected by the
+protocol, since selection uses cross-validated F1 only; we report the
+outcome rather than override it, and note that averaging the fold models
+instead of refitting (cross-validation bagging) would keep the score
+scale consistent.</p>
+<figure id="fig:cv" data-latex-placement="t">
+<img src="figures/cv_twitter_hate.png" />
+<figcaption>Fig. 5. Hate corpus: cross-validated F1 (bars, with fold
+standard deviation) against test F1 (dots) for all 22 cells. Differences
+of 0.02 are within fold noise for most cells.</figcaption>
+</figure>
+<p>Fig. 5 places the differences in context: fold standard deviations
+are 0.01 to 0.02, so the top eight cells (cross-validated F1 0.650 to
+0.672) are statistically indistinguishable on this corpus, and a claim
+that a network beats a linear model here would not survive the
+confidence intervals. Per-class scores of the selected models are given
+in Table 5: on the hate corpus the CNN at its tuned threshold trades
+recall (0.498) for precision (0.782) on the 448 positive test
+tweets.</p>
+<table id="tab:perclass">
+<caption>Table 5. Per-class test scores of the selected model on each
+dataset.</caption>
+<thead>
+<tr>
+<th style="text-align: left;">Dataset</th>
+<th style="text-align: left;">Class</th>
+<th style="text-align: right;">Support</th>
+<th style="text-align: center;">Prec.</th>
+<th style="text-align: center;">Rec.</th>
+<th style="text-align: center;">F1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Hate</td>
+<td style="text-align: left;">not hate</td>
+<td style="text-align: right;">5945</td>
+<td style="text-align: center;">0.963</td>
+<td style="text-align: center;">0.990</td>
+<td style="text-align: center;">0.976</td>
+</tr>
+<tr>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">hate</td>
+<td style="text-align: right;">448</td>
+<td style="text-align: center;">0.782</td>
+<td style="text-align: center;">0.498</td>
+<td style="text-align: center;">0.608</td>
+</tr>
+<tr>
+<td style="text-align: left;">Vaccine</td>
+<td style="text-align: left;">negative</td>
+<td style="text-align: right;">205</td>
+<td style="text-align: center;">0.639</td>
+<td style="text-align: center;">0.741</td>
+<td style="text-align: center;">0.686</td>
+</tr>
+<tr>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">neutral</td>
+<td style="text-align: right;">1172</td>
+<td style="text-align: center;">0.930</td>
+<td style="text-align: center;">0.861</td>
+<td style="text-align: center;">0.894</td>
+</tr>
+<tr>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">positive</td>
+<td style="text-align: right;">694</td>
+<td style="text-align: center;">0.825</td>
+<td style="text-align: center;">0.889</td>
+<td style="text-align: center;">0.856</td>
+</tr>
+<tr>
+<td style="text-align: left;">IMDB</td>
+<td style="text-align: left;">negative</td>
+<td style="text-align: right;">12500</td>
+<td style="text-align: center;">0.895</td>
+<td style="text-align: center;">0.866</td>
+<td style="text-align: center;">0.880</td>
+</tr>
+<tr>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">positive</td>
+<td style="text-align: right;">12500</td>
+<td style="text-align: center;">0.870</td>
+<td style="text-align: center;">0.898</td>
+<td style="text-align: center;">0.884</td>
+</tr>
+</tbody>
+</table>
+<h2 id="representations-1">Representations</h2>
+<table id="tab:features">
+<caption>Table 6. Feature representations: best model per feature set
+and dataset (test F1, model in parentheses). Doc2Vec was not run on
+IMDB.</caption>
+<thead>
+<tr>
+<th style="text-align: left;">Features</th>
+<th style="text-align: left;">Hate</th>
+<th style="text-align: left;">Vaccine</th>
+<th style="text-align: left;">IMDB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">counts</td>
+<td style="text-align: left;">0.636 (NB)</td>
+<td style="text-align: left;">0.775 (LR)</td>
+<td style="text-align: left;">0.856 (LR)</td>
+</tr>
+<tr>
+<td style="text-align: left;">TF-IDF</td>
+<td style="text-align: left;">0.680 (RF)</td>
+<td style="text-align: left;">0.757 (Ens.)</td>
+<td style="text-align: left;">0.884 (SVM)</td>
+</tr>
+<tr>
+<td style="text-align: left;">Word2Vec</td>
+<td style="text-align: left;">0.684 (XGB)</td>
+<td style="text-align: left;">0.552 (LR)</td>
+<td style="text-align: left;">0.846 (XGB)</td>
+</tr>
+<tr>
+<td style="text-align: left;">Doc2Vec</td>
+<td style="text-align: left;">0.557 (XGB)</td>
+<td style="text-align: left;">0.475 (LR)</td>
+<td style="text-align: left;">n/a</td>
+</tr>
+<tr>
+<td style="text-align: left;">sequence</td>
+<td style="text-align: left;">0.608 (CNN)</td>
+<td style="text-align: left;">0.812 (CNN)</td>
+<td style="text-align: left;">0.876 (BiLSTM)</td>
+</tr>
+</tbody>
+</table>
+<p>Table 6 confirms across all three corpora that sparse <span
+class="math inline">\(n\)</span>-gram features are the strongest
+representation for classical learners: TF-IDF or counts give the best
+cell for every model except XGBoost, which reaches its best hate-speech
+score (0.684) on mean-pooled Word2Vec. Doc2Vec is the weakest
+representation for every model on both Twitter corpora (0.42 to 0.56 on
+hate, 0.42 to 0.48 on vaccine): with documents of ten to twenty tokens,
+inferred paragraph vectors carry little beyond noise, and linear models
+on them fall below naive Bayes on counts. Mean-pooled Word2Vec sits
+between the two; it helps tree models, which can exploit interactions
+between embedding dimensions, and hurts linear ones. On the vaccine
+corpus the gap is largest: embedding features reach 0.42 to 0.55 macro
+F1 against 0.70 to 0.78 for <span class="math inline">\(n\)</span>-gram
+models, because the lexicon labeller responds to the presence of
+specific words that mean pooling blurs.</p>
+<h2 id="vaccine-corpus">Vaccine corpus</h2>
+<p>The CNN is clearly ahead on the three-class task: macro F1 0.812
+(cross-validated 0.799 ± 0.012, accuracy 0.859) against 0.775 for
+logistic regression on counts, 0.757 for the TF-IDF ensemble and for
+XGBoost on counts, and 0.779 for the BiLSTM. The per-class report (Table
+5) shows the minority negative class (205 test tweets) at F1 0.686 with
+recall 0.741, the neutral majority at 0.894 and positive at 0.856.
+Because the target is the sign of a lexicon polarity, a model that
+captures short patterns around lexicon words (negation, intensifiers)
+reproduces the labeller better than a bag of words can; these numbers
+should be read as agreement with TextBlob, not as human-judged sentiment
+accuracy.</p>
+<h2 id="imdb">IMDB</h2>
+<p>On balanced, long documents the picture inverts. Logistic regression
+(F1 0.886, accuracy 0.885), the calibrated SVM (0.884, 0.882) and their
+ensemble with XGBoost (0.888, 0.885) on 20,000 TF-IDF terms are within
+0.004 of each other with fold standard deviations of 0.002; the BiLSTM
+(0.876) and CNN (0.875) trained from scratch do not reach them, and the
+tree models trail by 0.02 to 0.03. The tuned thresholds of the best
+cells lie at 0.45 to 0.50, so thresholding is immaterial on this task.
+Accuracies of 88.2 to 88.5 percent agree with the 88.9 percent reported
+by Maas et al. [11] for their learned word vectors with a linear
+classifier and sit below the 91.2 percent of NB-SVM over bigrams [10]
+and the 93 percent and above of fine-tuned transformers [16], which
+locates this grid precisely: it is the ceiling of models that train from
+scratch on a CPU in minutes.</p>
+<h2 id="cost">Cost</h2>
+<table id="tab:cost">
+<caption>Table 7. Training cost of the best cell per model family:
+seconds to fit on the full training split (laptop CPU, 8 cores),
+hate-speech and IMDB tasks.</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">Model</td>
+<td colspan="2" style="text-align: center;">Hate</td>
+<td colspan="2" style="text-align: center;">IMDB</td>
+</tr>
+<tr>
+<td style="text-align: left;"></td>
+<td style="text-align: right;">F1</td>
+<td style="text-align: right;">s</td>
+<td style="text-align: right;">F1</td>
+<td style="text-align: right;">s</td>
+</tr>
+<tr>
+<td style="text-align: left;">Naive Bayes</td>
+<td style="text-align: right;">0.658</td>
+<td style="text-align: right;">0.1</td>
+<td style="text-align: right;">0.851</td>
+<td style="text-align: right;">0.1</td>
+</tr>
+<tr>
+<td style="text-align: left;">Logistic regression</td>
+<td style="text-align: right;">0.654</td>
+<td style="text-align: right;">0.1</td>
+<td style="text-align: right;">0.886</td>
+<td style="text-align: right;">0.1</td>
+</tr>
+<tr>
+<td style="text-align: left;">Linear SVM (calib.)</td>
+<td style="text-align: right;">0.654</td>
+<td style="text-align: right;">0.2</td>
+<td style="text-align: right;">0.884</td>
+<td style="text-align: right;">0.3</td>
+</tr>
+<tr>
+<td style="text-align: left;">Random forest</td>
+<td style="text-align: right;">0.680</td>
+<td style="text-align: right;">5.0</td>
+<td style="text-align: right;">0.859</td>
+<td style="text-align: right;">9.6</td>
+</tr>
+<tr>
+<td style="text-align: left;">XGBoost</td>
+<td style="text-align: right;">0.684</td>
+<td style="text-align: right;">9.0</td>
+<td style="text-align: right;">0.865</td>
+<td style="text-align: right;">53.9</td>
+</tr>
+<tr>
+<td style="text-align: left;">Soft-voting ensemble</td>
+<td style="text-align: right;">0.662</td>
+<td style="text-align: right;">3.2</td>
+<td style="text-align: right;">0.888</td>
+<td style="text-align: right;">45.1</td>
+</tr>
+<tr>
+<td style="text-align: left;">CNN</td>
+<td style="text-align: right;">0.608</td>
+<td style="text-align: right;">22.7</td>
+<td style="text-align: right;">0.875</td>
+<td style="text-align: right;">86.4</td>
+</tr>
+<tr>
+<td style="text-align: left;">BiLSTM</td>
+<td style="text-align: right;">0.658</td>
+<td style="text-align: right;">29.3</td>
+<td style="text-align: right;">0.876</td>
+<td style="text-align: right;">81.7</td>
+</tr>
+</tbody>
+</table>
+<p>Table 7 reports the time to fit the best cell per family on the full
+training split. The linear models train in well under a second on tweets
+and under a second on reviews; the forest and XGBoost in seconds to tens
+of seconds; the networks in 20 to 30 seconds on tweets and 80 to 90
+seconds on reviews. On the hate corpus the resulting differences in F1
+are within one to two fold standard deviations; on IMDB the cheapest
+models are also the most accurate. Whether the 0.04 to 0.05 macro-F1
+advantage of the CNN on the vaccine corpus is worth a hundredfold
+increase in training time and an uncalibrated score scale is an
+application decision that the benchmark makes explicit rather than
+hides.</p>
+<h2 id="comparison-with-the-original-study">Comparison with the original
+study</h2>
+<p>The thesis notebooks evaluated the same classical models on the hate
+corpus with the vectorizer fitted on training and test documents
+together and a fixed threshold of 0.3, reporting validation F1 between
+0.51 and 0.66 for logistic regression, the SVM, the forest and XGBoost
+on count, TF-IDF and Word2Vec features (and far lower on Doc2Vec), a
+public-leaderboard F1 of 0.70 for tuned XGBoost on Word2Vec, and
+94 percent accuracy for naive Bayes on a split in which unlabelled test
+rows were assigned the negative class. Under the present protocol naive
+Bayes reaches F1 0.658 (accuracy 0.954, which is mostly the majority
+rate), XGBoost on Word2Vec 0.684 and the linear models 0.654: the
+ordering of the original study survives, its absolute numbers do not,
+and the one figure that looked best was an artefact of leakage and of
+reporting accuracy under imbalance.</p>
+<h1 id="threats-to-validity">Threats to Validity</h1>
+<p><strong>Weak labels.</strong> The vaccine corpus is labelled by a
+lexicon; models are rewarded for learning its idiosyncrasies. The hate
+and IMDB corpora have human labels. <strong>Single test split.</strong>
+Test scores come from one stratified holdout (the official split for
+IMDB). Cross-validated means and standard deviations are reported
+alongside, and we have avoided claims that are smaller than one standard
+deviation. <strong>Threshold transfer.</strong> Thresholds selected on
+fold models are applied to refitted models; we quantified the cost (up
+to 0.064 F1 for the CNN) and identified cross-validation bagging as the
+remedy. <strong>Grid scope.</strong> No pretrained language model is
+included; the grid characterises what training from scratch on a CPU
+achieves, and the IMDB comparison with the literature bounds the gap.
+<strong>Temporal validity.</strong> Both Twitter corpora date from 2016
+to 2021; vocabulary and hashtag usage have since moved, which is what
+the drift monitor in the released system is for.
+<strong>Hardware.</strong> Timings are from one laptop and are
+indicative only.</p>
+<h1 id="conclusion">Conclusion</h1>
+<p>We fixed one evaluation protocol and applied it to 56 combinations of
+corpus, representation and model. Three findings hold across the study.
+First, on imbalanced short text the ranking ability of classical and
+neural classifiers is nearly identical, and the reported differences in
+F1 are differences in calibration and threshold handling; tuning the
+threshold on out-of-fold predictions is worth up to 0.09 F1 for
+classical models and 0.14 for networks and must be part of any
+comparison, and over-confident networks transfer such thresholds worst.
+Second, sparse <span class="math inline">\(n\)</span>-gram features
+remain the representation of choice for classical learners on short
+text, learned document embeddings are the weakest choice everywhere, and
+on balanced long documents linear models on TF-IDF match networks
+trained from scratch at a hundredth of the cost. Third, the numbers of
+the original notebook study were dominated by leakage and by accuracy
+under imbalance; a rigorous protocol preserves its ranking but not its
+figures. The released system makes these results regenerable from saved
+probabilities and keeps the selected models operable, with tracked runs,
+model cards, a database-backed prediction service and drift monitoring.
+Future work is cross-validation bagging of the neural cells, a
+fine-tuned transformer as an upper reference, and human annotation of a
+subset of the vaccine corpus to replace the lexicon labels.</p>
+<h1 class="unnumbered" id="references">References</h1>
+<ol>
+<li><p>B. Pang and L. Lee, “Opinion mining and sentiment analysis,”
+<em>Foundations and Trends in Information Retrieval</em>, vol. 2, no.
+1-2, pp. 1-135, 2008.</p></li>
+<li><p>B. Liu, <em>Sentiment Analysis and Opinion Mining</em>. San
+Rafael, CA, USA: Morgan &amp; Claypool, 2012.</p></li>
+<li><p>A. Go, R. Bhayani, and L. Huang, “Twitter sentiment
+classification using distant supervision,” Stanford University, CS224N
+Project Report, 2009.</p></li>
+<li><p>Z. Waseem and D. Hovy, “Hateful symbols or hateful people?
+Predictive features for hate speech detection on Twitter,” in <em>Proc.
+NAACL Student Research Workshop</em>, San Diego, CA, USA, 2016, pp.
+88-93.</p></li>
+<li><p>T. Davidson, D. Warmsley, M. Macy, and I. Weber, “Automated hate
+speech detection and the problem of offensive language,” in <em>Proc.
+11th Int. AAAI Conf. Web and Social Media (ICWSM)</em>, Montreal,
+Canada, 2017, pp. 512-515.</p></li>
+<li><p>A. McCallum and K. Nigam, “A comparison of event models for naive
+Bayes text classification,” in <em>Proc. AAAI Workshop on Learning for
+Text Categorization</em>, Madison, WI, USA, 1998, pp. 41-48.</p></li>
+<li><p>T. Joachims, “Text categorization with support vector machines:
+Learning with many relevant features,” in <em>Proc. 10th European Conf.
+Machine Learning (ECML)</em>, Chemnitz, Germany, 1998, pp.
+137-142.</p></li>
+<li><p>L. Breiman, “Random forests,” <em>Machine Learning</em>, vol. 45,
+no. 1, pp. 5-32, 2001.</p></li>
+<li><p>T. Chen and C. Guestrin, “XGBoost: A scalable tree boosting
+system,” in <em>Proc. 22nd ACM SIGKDD Int. Conf. Knowledge Discovery and
+Data Mining</em>, San Francisco, CA, USA, 2016, pp. 785-794.</p></li>
+<li><p>S. Wang and C. D. Manning, “Baselines and bigrams: Simple, good
+sentiment and topic classification,” in <em>Proc. 50th Annu. Meeting
+Assoc. Computational Linguistics (ACL)</em>, Jeju Island, Korea, 2012,
+pp. 90-94.</p></li>
+<li><p>A. L. Maas, R. E. Daly, P. T. Pham, D. Huang, A. Y. Ng, and C.
+Potts, “Learning word vectors for sentiment analysis,” in <em>Proc. 49th
+Annu. Meeting Assoc. Computational Linguistics (ACL)</em>, Portland, OR,
+USA, 2011, pp. 142-150.</p></li>
+<li><p>T. Mikolov, I. Sutskever, K. Chen, G. Corrado, and J. Dean,
+“Distributed representations of words and phrases and their
+compositionality,” in <em>Advances in Neural Information Processing
+Systems 26</em>, Lake Tahoe, NV, USA, 2013, pp. 3111-3119.</p></li>
+<li><p>Q. Le and T. Mikolov, “Distributed representations of sentences
+and documents,” in <em>Proc. 31st Int. Conf. Machine Learning
+(ICML)</em>, Beijing, China, 2014, pp. 1188-1196.</p></li>
+<li><p>Y. Kim, “Convolutional neural networks for sentence
+classification,” in <em>Proc. Conf. Empirical Methods in Natural
+Language Processing (EMNLP)</em>, Doha, Qatar, 2014, pp.
+1746-1751.</p></li>
+<li><p>S. Hochreiter and J. Schmidhuber, “Long short-term memory,”
+<em>Neural Computation</em>, vol. 9, no. 8, pp. 1735-1780,
+1997.</p></li>
+<li><p>J. Devlin, M.-W. Chang, K. Lee, and K. Toutanova, “BERT:
+Pre-training of deep bidirectional transformers for language
+understanding,” in <em>Proc. NAACL-HLT</em>, Minneapolis, MN, USA, 2019,
+pp. 4171-4186.</p></li>
+<li><p>S. Kaufman, S. Rosset, C. Perlich, and O. Stitelman, “Leakage in
+data mining: Formulation, detection, and avoidance,” <em>ACM Trans.
+Knowledge Discovery from Data</em>, vol. 6, no. 4, art. 15,
+2012.</p></li>
+<li><p>G. C. Cawley and N. L. C. Talbot, “On over-fitting in model
+selection and subsequent selection bias in performance evaluation,”
+<em>J. Machine Learning Research</em>, vol. 11, pp. 2079-2107,
+2010.</p></li>
+<li><p>Z. C. Lipton, C. Elkan, and B. Naryanaswamy, “Optimal
+thresholding of classifiers to maximize F1 measure,” in <em>Proc. ECML
+PKDD</em>, Nancy, France, 2014, pp. 225-239.</p></li>
+<li><p>J. C. Platt, “Probabilistic outputs for support vector machines
+and comparisons to regularized likelihood methods,” in <em>Advances in
+Large Margin Classifiers</em>, A. J. Smola, P. Bartlett, B. Schölkopf,
+and D. Schuurmans, Eds. Cambridge, MA, USA: MIT Press, 1999, pp.
+61-74.</p></li>
+<li><p>A. Niculescu-Mizil and R. Caruana, “Predicting good probabilities
+with supervised learning,” in <em>Proc. 22nd Int. Conf. Machine Learning
+(ICML)</em>, Bonn, Germany, 2005, pp. 625-632.</p></li>
+<li><p>C. Guo, G. Pleiss, Y. Sun, and K. Q. Weinberger, “On calibration
+of modern neural networks,” in <em>Proc. 34th Int. Conf. Machine
+Learning (ICML)</em>, Sydney, Australia, 2017, pp. 1321-1330.</p></li>
+<li><p>J. Davis and M. Goadrich, “The relationship between
+precision-recall and ROC curves,” in <em>Proc. 23rd Int. Conf. Machine
+Learning (ICML)</em>, Pittsburgh, PA, USA, 2006, pp. 233-240.</p></li>
+<li><p>F. Pedregosa et al., “Scikit-learn: Machine learning in Python,”
+<em>J. Machine Learning Research</em>, vol. 12, pp. 2825-2830,
+2011.</p></li>
+<li><p>A. Paszke et al., “PyTorch: An imperative style, high-performance
+deep learning library,” in <em>Advances in Neural Information Processing
+Systems 32</em>, Vancouver, Canada, 2019, pp. 8024-8035.</p></li>
+<li><p>S. Loria, “TextBlob: Simplified text processing,” software,
+release 0.15, 2018. [Online]. Available: <a
+href="https://textblob.readthedocs.io"
+class="uri">https://textblob.readthedocs.io</a></p></li>
+<li><p>D. Sculley et al., “Hidden technical debt in machine learning
+systems,” in <em>Advances in Neural Information Processing Systems
+28</em>, Montreal, Canada, 2015, pp. 2503-2511.</p></li>
+<li><p>M. Mitchell et al., “Model cards for model reporting,” in
+<em>Proc. Conf. Fairness, Accountability, and Transparency (FAT*)</em>,
+Atlanta, GA, USA, 2019, pp. 220-229.</p></li>
+<li><p>M. Zaharia et al., “Accelerating the machine learning lifecycle
+with MLflow,” <em>IEEE Data Engineering Bulletin</em>, vol. 41, no. 4,
+pp. 39-45, 2018.</p></li>
+<li><p>N. Siddiqi, <em>Credit Risk Scorecards: Developing and
+Implementing Intelligent Credit Scoring</em>. Hoboken, NJ, USA: Wiley,
+2006.</p></li>
+</ol>
+</body>
+</html>

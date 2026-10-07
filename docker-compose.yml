@@ -1,0 +1,53 @@
+# Local production-like stack: API + PostgreSQL (predictions, drift reports,
+# MLflow backend) + MLflow server. Secrets come from .env (see .env.example).
+#
+#   docker compose up --build
+#   open http://localhost:5000 (API) and http://localhost:5001 (MLflow)
+
+services:
+  api:
+    build: .
+    ports: ["5000:5000"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-sentiment}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-sentiment}
+      MLFLOW_TRACKING_URI: http://mlflow:5001
+    volumes:
+      - ./models:/app/models:ro
+      - ./reports:/app/reports
+    depends_on:
+      postgres: {condition: service_healthy}
+      mlflow: {condition: service_started}
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sentiment}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-sentiment}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sentiment} -d ${POSTGRES_DB:-sentiment}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.4.0
+    command: >
+      sh -c "pip install -q psycopg2-binary &&
+             mlflow server --host 0.0.0.0 --port 5001
+             --backend-store-uri postgresql+psycopg2://${POSTGRES_USER:-sentiment}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-sentiment}
+             --artifacts-destination /mlflow/artifacts"
+    ports: ["5001:5001"]
+    volumes:
+      - mlflow-artifacts:/mlflow/artifacts
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  mlflow-artifacts:

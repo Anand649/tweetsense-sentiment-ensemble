@@ -1,0 +1,29 @@
+Every number, figure and table in this thesis is produced by the public repository \url{https://github.com/rhs2/sentiment-ml-benchmark}. The commands below reproduce the study on a machine with Python 3.10 to 3.12.
+
+\begin{verbatim}
+git clone https://github.com/rhs2/sentiment-ml-benchmark.git
+cd sentiment-ml-benchmark
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"          # Linux: make install-cpu
+cp .env.example .env             # locations and database URL
+
+make smoke                       # one minute on the synthetic corpus
+sentiment-benchmark data download
+sentiment-benchmark data check   # rows, balance, fingerprint
+make benchmark                   # Twitter grid: reports/, models/, MLflow runs
+sentiment-benchmark benchmark --config configs/imdb.yaml
+sentiment-benchmark report       # figures, results.md, README tables
+python paper/build.py            # the article (PDF and DOCX)
+python thesis/build.py           # this document (PDF and DOCX)
+\end{verbatim}
+
+\noindent The Twitter grid takes about one hour on an eight-core laptop CPU and the IMDB grid about forty minutes. Serving and monitoring:
+
+\begin{verbatim}
+make serve                       # dashboard and API on http://127.0.0.1:5000
+sentiment-benchmark predict --dataset twitter_hate "some tweet"
+sentiment-benchmark monitor --dataset twitter_hate --from-db --store
+docker compose up --build        # API + PostgreSQL + MLflow server
+\end{verbatim}
+
+\noindent Software versions used for the reported numbers are pinned in \texttt{requirements.txt}: scikit-learn 1.5.2, XGBoost 2.0.3, Gensim 4.4.0, PyTorch 2.13.0, NLTK 3.10.3, TextBlob 0.20.1, MLflow 3.15.1, SQLAlchemy 2.0.23, Flask 3.1.2, pandas 2.1.4, NumPy 1.26.2.

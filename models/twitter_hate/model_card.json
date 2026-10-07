@@ -1,0 +1,78 @@
+{
+  "dataset": "twitter_hate",
+  "task": "binary",
+  "label_names": [
+    "not_hate",
+    "hate"
+  ],
+  "model": "cnn",
+  "features": "sequence",
+  "threshold": 0.8999999999999999,
+  "selection": "highest cross-validated F1 on the training split",
+  "metrics": {
+    "cv_f1_mean": 0.672160094173043,
+    "cv_f1_std": 0.02230132998830162,
+    "test_accuracy": 0.9551071484436102,
+    "test_precision": 0.7824561403508772,
+    "test_recall": 0.49776785714285715,
+    "test_f1": 0.6084583901773534,
+    "test_f1_at_0.5": 0.5150877192982456,
+    "test_roc_auc": 0.947934751591974,
+    "test_pr_auc": 0.6950814805698218,
+    "cv_seconds": 125.7
+  },
+  "per_class": [
+    {
+      "class": "not_hate",
+      "support": 5945,
+      "precision": 0.9631630648330058,
+      "recall": 0.9895710681244744,
+      "f1": 0.9761885007881855
+    },
+    {
+      "class": "hate",
+      "support": 448,
+      "precision": 0.7824561403508772,
+      "recall": 0.49776785714285715,
+      "f1": 0.6084583901773534
+    }
+  ],
+  "feature_params": {
+    "type": "sequence"
+  },
+  "model_params": {
+    "type": "cnn",
+    "embed_dim": 128,
+    "embedding_init": "word2vec",
+    "kernel_sizes": [
+      3,
+      4,
+      5
+    ],
+    "n_filters": 128,
+    "dropout": 0.5,
+    "epochs": 8,
+    "patience": 2,
+    "batch_size": 64,
+    "lr": 0.001,
+    "class_weight": "balanced",
+    "max_len": 48
+  },
+  "clean": {
+    "lowercase": true,
+    "remove_urls": true,
+    "remove_mentions": true,
+    "keep_hashtags": true,
+    "remove_stopwords": true,
+    "min_word_len": 3,
+    "stemmer": "porter"
+  },
+  "training_rows": 25569,
+  "data_fingerprint": "e41a9ea8c6335802",
+  "config": "configs/benchmark.yaml",
+  "git_commit": null,
+  "package_version": "1.0.0",
+  "python": "3.12.10",
+  "tracking_backend": "mlflow (sqlite:////Users/sium/Desktop/Lykios/resume/pipeline/sentiment-ml-benchmark/reports/mlflow.db)",
+  "created": "2026-08-22T11:56:27.261422+00:00"
+}

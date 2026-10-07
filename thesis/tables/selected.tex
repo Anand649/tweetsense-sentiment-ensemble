@@ -1,0 +1,15 @@
+\begin{table}[t]
+\centering
+\caption{Model selected per dataset by cross-validated F1, scored once on the held-out test split. F1 is on the positive class for the binary tasks and macro-averaged for the three-class task; ROC-AUC for the three-class task is one-versus-rest, macro-averaged. Thresholds are chosen on out-of-fold predictions (argmax for the three-class task).}
+\label{tab:selected}
+\footnotesize\setlength{\tabcolsep}{4pt}
+\resizebox{\textwidth}{!}{\begin{tabular}{llrrlccccccc}
+\toprule
+Dataset & Task & Train & Test & Model / features & CV F1 & Test F1 & Acc. & Prec. & Rec. & ROC-AUC & Thr. \\
+\midrule
+Hate & binary & 25569 & 6393 & CNN / sequence & 0.672 \textpm\  0.022 & \textbf{0.608} & 0.955 & 0.782 & 0.498 & 0.948 & 0.90 \\
+Vaccine & multiclass & 8282 & 2071 & CNN / sequence & 0.799 \textpm\  0.012 & \textbf{0.812} & 0.859 & 0.798 & 0.830 & 0.948 & argmax \\
+IMDB & binary & 25000 & 25000 & Linear SVM (calib.) / TF-IDF & 0.893 \textpm\  0.002 & \textbf{0.884} & 0.882 & 0.870 & 0.898 & 0.953 & 0.50 \\
+\bottomrule
+\end{tabular}}
+\end{table}

@@ -1,0 +1,20 @@
+\begin{table}[t]
+\centering
+\caption{Effect of the decision threshold on the hate-speech task (best feature set per model). F1 at the threshold tuned on out-of-fold predictions versus F1 at 0.5 on the same test split; the last column is the gap between the cross-validated F1 and the test F1 at the tuned threshold (threshold transfer).}
+\label{tab:threshold}
+\footnotesize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{llccccc}
+\toprule
+Model & Feat. & Thr. & F1 tuned & F1 at 0.5 & Gain & CV minus test \\
+\midrule
+CNN & sequence & 0.90 & 0.608 & 0.515 & +0.093 & +0.064 \\
+BiLSTM & sequence & 0.85 & 0.658 & 0.514 & +0.144 & +0.013 \\
+RF & TF-IDF & 0.40 & 0.680 & 0.685 & -0.005 & -0.010 \\
+XGB & Word2Vec & 0.23 & 0.684 & 0.661 & +0.023 & -0.020 \\
+Ens. & TF-IDF & 0.38 & 0.662 & 0.654 & +0.008 & -0.002 \\
+SVM & TF-IDF & 0.32 & 0.654 & 0.615 & +0.039 & -0.001 \\
+LR & TF-IDF & 0.69 & 0.654 & 0.586 & +0.068 & -0.002 \\
+NB & TF-IDF & 0.24 & 0.658 & 0.571 & +0.087 & -0.008 \\
+\bottomrule
+\end{tabular}
+\end{table}

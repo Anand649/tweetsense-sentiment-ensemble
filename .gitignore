@@ -1,0 +1,87 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.pytest_tmp/
+server.stdout.log
+server.stderr.log
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.local
+*.pem
+*.tfvars
+!deploy/aws/terraform/example.tfvars
+.terraform/
+*.tfstate
+*.tfstate.backup
+
+# Data and artefacts (never commit datasets, derived data or trained weights)
+data/raw/
+data/processed/
+data/samples/
+data/manifest.json
+models/**/*.joblib
+models/**/baseline_stats.json
+reports/mlruns/
+reports/mlflow.db
+reports/mlartifacts/
+mlruns/
+mlartifacts/
+reports/runs.jsonl
+reports/predictions.jsonl
+reports/predictions.db
+reports/predictions/
+reports/figures/cm_*.png
+*.h5
+*.keras
+*.joblib
+*.pkl
+*.npy
+*.npz
+
+# NLP resources
+nltk_data/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+example/
+data/new/
+reports/smoke/
+models/smoke/
+paper/title.tex
+paper/main_docx.tex
+paper/main.log
+paper/main.aux
+thesis/title.tex
+thesis/main_docx.tex
+thesis/main.log
+thesis/main.aux
+thesis/main.toc
+thesis/main.lof
+thesis/main.lot
+thesis/main.out
+
+# built documents stay local; the site publishes HTML versions only
+paper/*.pdf
+paper/*.docx
+thesis/*.pdf
+thesis/*.docx
+docs/pdf/
+
+# no built documents anywhere in the repository
+*.pdf
+*.docx

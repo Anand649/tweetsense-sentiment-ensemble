@@ -1,0 +1,28 @@
+\begin{table}[t]
+\centering
+\caption{Hate corpus: the 2022 notebook study (validation F1 at a fixed threshold of 0.3, vectorizers fitted on training and test documents together, single split) against the present protocol (test F1 at the out-of-fold tuned threshold, features fitted per fold). The 2022 Naive Bayes figure was an accuracy of 0.941 on a leaky split and is not comparable.}
+\label{tab:thennow}
+\small
+\begin{tabular}{llcc}
+\toprule
+Model & Features & 2022 notebook F1 & 2026 protocol test F1 \\
+\midrule
+Logistic regression & counts & 0.530 & 0.658 \\
+Logistic regression & TF-IDF & 0.545 & 0.654 \\
+Logistic regression & Word2Vec & 0.614 & 0.559 \\
+Logistic regression & Doc2Vec & 0.386 & 0.423 \\
+Linear SVM (calib.) & counts & 0.510 & 0.647 \\
+Linear SVM (calib.) & TF-IDF & 0.511 & 0.654 \\
+Linear SVM (calib.) & Word2Vec & 0.613 & 0.557 \\
+Linear SVM (calib.) & Doc2Vec & 0.198 & 0.430 \\
+Random forest & counts & 0.553 & 0.661 \\
+Random forest & TF-IDF & 0.562 & 0.680 \\
+Random forest & Word2Vec & 0.511 & 0.596 \\
+Random forest & Doc2Vec & 0.065 & 0.525 \\
+XGBoost & counts & 0.513 & 0.615 \\
+XGBoost & TF-IDF & 0.519 & 0.604 \\
+XGBoost & Word2Vec & 0.658 & 0.684 \\
+XGBoost & Doc2Vec & 0.365 & 0.557 \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,0 +1,93 @@
+{
+  "dataset": "tweet_sentiment",
+  "task": "multiclass",
+  "label_names": [
+    "negative",
+    "neutral",
+    "positive"
+  ],
+  "model": "ensemble",
+  "features": "tfidf",
+  "threshold": null,
+  "selection": "highest cross-validated F1 on the training split",
+  "metrics": {
+    "cv_f1_mean": 0.5470587293693624,
+    "cv_f1_std": 0.0019021414356026334,
+    "test_accuracy": 0.5874308042982742,
+    "test_precision": 0.6020140955228889,
+    "test_recall": 0.5608957793693555,
+    "test_f1": 0.55196165226163,
+    "test_f1_weighted": 0.5685419746347927,
+    "test_roc_auc": 0.7703278423789514,
+    "cv_seconds": 5.3
+  },
+  "per_class": [
+    {
+      "class": "negative",
+      "support": 3972,
+      "precision": 0.699438202247191,
+      "recall": 0.31344410876132933,
+      "f1": 0.43289290681502085
+    },
+    {
+      "class": "neutral",
+      "support": 5937,
+      "precision": 0.5852272727272727,
+      "recall": 0.763348492504632,
+      "f1": 0.6625246692493238
+    },
+    {
+      "class": "positive",
+      "support": 2375,
+      "precision": 0.5213768115942029,
+      "recall": 0.6058947368421053,
+      "f1": 0.5604673807205452
+    }
+  ],
+  "feature_params": {
+    "type": "tfidf",
+    "min_df": 2,
+    "max_features": 20000,
+    "ngram_range": [
+      1,
+      2
+    ],
+    "sublinear_tf": true
+  },
+  "model_params": {
+    "type": "ensemble",
+    "names": [
+      "logistic_regression",
+      "linear_svm",
+      "naive_bayes"
+    ],
+    "members": {
+      "logistic_regression": {
+        "max_iter": 1000
+      },
+      "linear_svm": {
+        "calibration_cv": 2
+      },
+      "naive_bayes": {
+        "alpha": 1.0
+      }
+    }
+  },
+  "clean": {
+    "lowercase": true,
+    "remove_urls": true,
+    "remove_mentions": true,
+    "keep_hashtags": true,
+    "remove_stopwords": false,
+    "min_word_len": 2,
+    "stemmer": null
+  },
+  "training_rows": 45615,
+  "data_fingerprint": "16ab68f96271f55b",
+  "config": "configs\\tweet_sentiment.yaml",
+  "git_commit": "3e8f50a",
+  "package_version": "1.0.0",
+  "python": "3.12.14",
+  "tracking_backend": "jsonl",
+  "created": "2026-10-07T13:12:03.377802+00:00"
+}
